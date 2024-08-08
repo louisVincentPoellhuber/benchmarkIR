@@ -4,9 +4,21 @@
         "dataset": "/part/01/Tmp/lvpoellhuber/datasets/wikipedia/dataset.pt",
         "model": "/part/01/Tmp/lvpoellhuber/models/custom_roberta/adaptive_mlm",
         "tokenizer": "/part/01/Tmp/lvpoellhuber/models/custom_roberta/roberta_mlm",
-        "use_checkpoint": false,
-        "batch_size": 16,
+        "checkpoint": null
+
+    },
+    "preprocess_args": {
+        "preprocess": false,
+        "dataset": "wikipedia", 
+        "train_tokenizer": false, 
+        "overwrite": false
+    },
+    "train_args": {
+        "dataset":"/part/01/Tmp/lvpoellhuber/datasets/wikipedia/dataset.pt", 
+        "epochs": 2,
+        "batch_size": 16, 
         "lr": 1e-5,
+        "use_checkpoint": false, 
         "logging": false,
         "train": true, 
         "eval": false

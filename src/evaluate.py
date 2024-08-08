@@ -3,7 +3,9 @@ from models import *
 
 import argparse
 import pandas as pd
+import json
 
+import wandb
 from transformers import RobertaConfig, get_scheduler
 from accelerate import Accelerator
 from torch.optim import AdamW
@@ -11,54 +13,56 @@ from datasets import load_dataset, load_metric
 
 def parse_arguments():
     argparser = argparse.ArgumentParser("masked language modeling")
-    argparser.add_argument('--config', type=str)
-    argparser.add_argument('--input_dir', default="/part/01/Tmp/lvpoellhuber/datasets")
-    argparser.add_argument('--model_dir', default="/part/01/Tmp/lvpoellhuber/models/custom_roberta/roberta_glue")
-    argparser.add_argument('--batch_size', default=16) # TODO: same
-    argparser.add_argument('--checkpoint', default="/part/01/Tmp/lvpoellhuber/models/custom_roberta/roberta_mlm/checkpoints")
+    argparser.add_argument('--config', default="default") # default, adaptive, dtp
     args = argparser.parse_args()
 
     return args
 
 if __name__ == "__main__":
     args = parse_arguments()
-    data_path = args.input_dir
-    dataset_path = os.path.join(os.path.join(data_path, "glue"), "mnli")
-    model_path = args.model_dir
-    chkpt_path = os.path.join(os.path.join(model_path, "roberta_glue"), "checkpoints")
+
+    config_path = os.path.join("/u/poellhul/Documents/Masters/benchmarkIR/src/configs", args.config+"_finetune.json")
+    with open(config_path) as fp: arg_dict = json.load(fp)
+
+    config = arg_dict["config"]
+    settings = arg_dict["settings"]
+    train_args = arg_dict["train_args"]
+    eval_args = arg_dict["eval_args"]
+    preprocess_args = arg_dict["preprocess_args"]
+
+    # Main arguments
+    data_path = settings["datapath"]
+    dataset_path = train_args["dataset"]
+    model_path = settings["model"]
+    tokenizer_path = settings["tokenizer"]
+    chkpt_path = settings["checkpoint"] if not None else os.path.join(model_path, "checkpoints")
 
     accelerator = Accelerator(log_with="wandb")
     device = accelerator.device 
-    # Get data
-    data = load_dataset("glue", "mnli", cache_dir=data_path)
-    metric = load_metric("glue", "mnli", trust_remote_code=True)
     
-    tokenizer = RobertaTokenizerFast.from_pretrained("/part/01/Tmp/lvpoellhuber/models/custom_roberta")
+    # Generate or load dataset + tokenizer
+    if preprocess_args["preprocess"]:
+        preprocess_main(preprocess_args["dataset"], data_path, tokenizer_path, preprocess_args["train_tokenizer"], preprocess_args["overwrite"])
 
-    if args.do_train:   
-        eval_path = os.path.join(dataset_path, "mnli_train.pt")
-        dataset_train = generate_eval_dataset(data, tokenizer, eval_path, "train")
-        train_dataloader = torch.utils.data.DataLoader(dataset_train, batch_size = args.batch_size, shuffle=True)
+    metric = load_metric("glue", "mnli", trust_remote_code=True)
+    tokenizer = get_tokenizer(tokenizer_path)
+    
+    if train_args["train"]:   
+        train_dataloader = get_dataloader(train_args["batch_size"], dataset_path)
 
         
         print("Initializing training. ")
-        config = RobertaConfig(
-            vocab_size=tokenizer.vocab_size+4, 
-            max_position_embeddings=514, 
-            hidden_size=768,
-            num_attention_heads=12, 
-            num_hidden_layers=6, # Default is 12, 6 makes training shorter
-            type_vocab_size=1, 
-            num_labels=4
-        )
+        config = RobertaConfig.from_dict(config)
+        config.vocab_size = tokenizer.vocab_size+4
 
-        model = RobertaForSequenceClassification(config=config).from_pretrained("/part/01/Tmp/lvpoellhuber/models/custom_roberta/roberta_mlm", config=config)
-        model.to(device)
 
-        optim = AdamW(model.parameters(), lr=1e-5) # typical range is 1e-6 to 1e-4
+        model = RobertaForSequenceClassification(config=config).from_pretrained(chkpt_path, config=config)
+        model.to("cpu")
+
+        optim = AdamW(model.parameters(), lr=train_args["lr"]) # typical range is 1e-6 to 1e-4
 
         # Number of training epochs and warmup steps
-        epochs = 2
+        epochs = train_args["epochs"]
         num_training_steps = epochs * len(train_dataloader)
         num_warmup_steps = int(0.1 * num_training_steps)
 
@@ -71,27 +75,24 @@ if __name__ == "__main__":
         )
 
         # Accelerator function
-        model, optim, dataloader, scheduler = accelerator.prepare(
-            model, optim, train_dataloader, scheduler
-        )
+        #model, optim, dataloader, scheduler = accelerator.prepare(
+        #    model, optim, train_dataloader, scheduler
+        #)
 
         print("Beginnig training process. ")
         # WandB stuff
-        #wandb.login(key=os.getenv("WANDB_KEY"))
-        #run = wandb.init(
-        #    project = "benchmarkIR",
-        #    config = vars(args)
-        #)
-
-        # You can add a config here, for the experiment
-        accelerator.init_trackers("benchmarkIR")
-
-        #accelerator.print(f"Resumed from checkpoint: {args.checkpoint}")
-        #accelerator.load_state(args.checkpoint, strict=False)
+        
+        if train_args["logging"]:
+            wandb.login(key=os.getenv("WANDB_KEY"))
+            run = wandb.init(
+                project = "benchmarkIR",
+                config = vars(settings + config)
+            )
+            accelerator.init_trackers("benchmarkIR")
 
         # Training loop
         for epoch in range(epochs):
-            loop = tqdm(dataloader, leave=True)
+            loop = tqdm(train_dataloader, leave=True)
             for i, batch in enumerate(loop):
                 print(loop)
                 optim.zero_grad()
@@ -126,22 +127,14 @@ if __name__ == "__main__":
             save_function=accelerator.save,
         )
 
-    if args.do_eval:    
-        eval_path = os.path.join(dataset_path, "mnli_val.pt")
-        dataset_val = generate_eval_dataset(data, tokenizer, eval_path, "validation_matched")
-        val_dataloader = torch.utils.data.DataLoader(dataset_val, batch_size = args.batch_size, shuffle=True)
+    if args["do_eval"]:    
+        val_dataloader = get_dataloader(train_args["batch_size"], eval_args["dataset"])
 
-        config = RobertaConfig(
-            vocab_size=tokenizer.vocab_size+4, 
-            max_position_embeddings=514, 
-            hidden_size=768,
-            num_attention_heads=12, 
-            num_hidden_layers=6, # Default is 12, 6 makes training shorter
-            type_vocab_size=1, 
-            num_labels=4
-        )
+        config = RobertaConfig.from_dict(config)
+        config.vocab_size = tokenizer.vocab_size+4
 
-        model = RobertaForSequenceClassification(config=config).from_pretrained("/part/01/Tmp/lvpoellhuber/models/custom_roberta/roberta_glue", config=config)
+
+        model = RobertaForSequenceClassification(config=config).from_pretrained(eval_args["model"], config=config)
         model.to(device)
 
         # Accelerator function

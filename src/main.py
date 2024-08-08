@@ -1,14 +1,14 @@
 from transformers import RobertaConfig, get_scheduler,PretrainedConfig
 from torch.optim import AdamW
 from accelerate import Accelerator, DistributedDataParallelKwargs
-from datasets import load_dataset
 
 import argparse
 import wandb
-import time
+from tqdm import tqdm
 import json
+import os
 
-from preprocessing import *
+from preprocessing import preprocess_main, get_dataloader, get_tokenizer
 from models import *
 
 def parse_arguments():
@@ -19,56 +19,35 @@ def parse_arguments():
 
     return args
 
-def download_dataset(data_path):
-    # Creating sample files to simplify tokenizer training. 
-    if not os.path.exists(os.path.join(data_path, "wiki_en_0.txt")):
-        dataset = load_dataset("wikipedia", language="en", date="20220301", cache_dir=data_path)
-        create_sample_files(dataset, data_path)
-    paths = [str(x) for x in Path(data_path).glob("*.txt")]
-
-    return paths
-
-def get_tokenizer(paths, tokenizer_path):
-    # Tokenizer training
-    if os.path.exists(os.path.join(tokenizer_path, "vocab.json")):
-        print("Loading pretrained tokenizer.")
-        tokenizer = RobertaTokenizerFast.from_pretrained(tokenizer_path)
-    else:
-        print("Training tokenizer.")
-        tokenizer = train_BPETokenizer(paths, tokenizer_path)
-
-    return tokenizer
-
-def get_dataloader(tokenizer, paths, batch_size, dataset_path):
-    dataset = generate_dataset(tokenizer, paths, dataset_path)
-    dataloader = torch.utils.data.DataLoader(dataset, batch_size = batch_size, shuffle=True)
-
-    return dataloader
-
 
 if __name__ == "__main__":
     # Parse arguments
     args = parse_arguments()
-    config_path = os.path.join("/u/poellhul/Documents/Masters/benchmarkIR/src/configs", args.config+".json")
+    config_path = os.path.join("/u/poellhul/Documents/Masters/benchmarkIR/src/configs", args.config+"_mlm.json")
     with open(config_path) as fp: arg_dict = json.load(fp)
 
     config = arg_dict["config"]
     settings = arg_dict["settings"]
+    train_args = arg_dict["train_args"]
+    preprocess_args = arg_dict["preprocess_args"]
 
     # Main arguments
     data_path = settings["datapath"]
-    dataset_path = settings["dataset"]
+    dataset_path = train_args["dataset"]
     model_path = settings["model"]
     tokenizer_path = settings["tokenizer"]
-    chkpt_path = os.path.join(model_path, "checkpoints")
+    chkpt_path = settings["checkpoint"] if not None else os.path.join(model_path, "checkpoints")
 
     accelerator = Accelerator(log_with="wandb", kwargs_handlers=[DistributedDataParallelKwargs(find_unused_parameters=True)])
     device = accelerator.device 
 
+
     # Generate or load dataset + tokenizer
-    paths = download_dataset(data_path)
-    tokenizer = get_tokenizer(paths, tokenizer_path)
-    dataloader = get_dataloader(tokenizer, paths, settings["batch_size"], dataset_path)
+    if preprocess_args["preprocess"]:
+        preprocess_main(preprocess_args["dataset"], data_path, tokenizer_path, preprocess_args["train_tokenizer"], preprocess_args["overwrite"])
+
+    tokenizer = get_tokenizer(tokenizer_path)
+    dataloader = get_dataloader(train_args["batch_size"], dataset_path)
     
     # Read the config
     print("Initializing training. ")
@@ -79,10 +58,10 @@ if __name__ == "__main__":
     model = RobertaForMaskedLM(config)
     model.to(device)
 
-    optim = AdamW(model.parameters(), settings["lr"]) # typical range is 1e-6 to 1e-4
+    optim = AdamW(model.parameters(), train_args["lr"]) # typical range is 1e-6 to 1e-4
 
     # Number of training epochs and warmup steps
-    epochs = 2
+    epochs = train_args["epochs"]
     num_training_steps = epochs * len(dataloader)
     num_warmup_steps = int(0.1 * num_training_steps)
 
@@ -99,9 +78,9 @@ if __name__ == "__main__":
         model, optim, dataloader, scheduler
     )
 
-    print("Beginnig training process. ")
+    print("Beginning training process. ")
     # WandB stuff
-    if settings["logging"]:
+    if train_args["logging"]:
         wandb.login(key=os.getenv("WANDB_KEY"))
         run = wandb.init(
             project = "benchmarkIR",
@@ -111,9 +90,9 @@ if __name__ == "__main__":
 
     # You can add a config here, for the experiment
     
-    if settings["use_checkpoint"]:
-        accelerator.print(f"Resumed from checkpoint: {chkpt_path}")
-        accelerator.load_state(chkpt_path, strict=False)
+    #if train_args["use_checkpoint"]: # TODO: Figure out how to use checkpoint
+    #    accelerator.print(f"Resumed from checkpoint: {chkpt_path}")
+    #    accelerator.load_state(chkpt_path, strict=False)
 
     # Training loop
     for epoch in range(epochs):
