@@ -13,7 +13,7 @@ from datasets import load_dataset, load_metric
 
 def parse_arguments():
     argparser = argparse.ArgumentParser("masked language modeling")
-    argparser.add_argument('--config', default="default") # default, adaptive, dtp
+    argparser.add_argument('--config', default="adaptive") # default, adaptive, dtp
     args = argparser.parse_args()
 
     return args
@@ -57,7 +57,7 @@ if __name__ == "__main__":
 
 
         model = RobertaForSequenceClassification(config=config).from_pretrained(chkpt_path, config=config)
-        model.to("cpu")
+        model.to(device)
 
         optim = AdamW(model.parameters(), lr=train_args["lr"]) # typical range is 1e-6 to 1e-4
 
@@ -75,11 +75,11 @@ if __name__ == "__main__":
         )
 
         # Accelerator function
-        #model, optim, dataloader, scheduler = accelerator.prepare(
-        #    model, optim, train_dataloader, scheduler
-        #)
+        model, optim, dataloader, scheduler = accelerator.prepare(
+            model, optim, train_dataloader, scheduler
+        )
 
-        print("Beginnig training process. ")
+        print("Beginning training process. ")
         # WandB stuff
         
         if train_args["logging"]:
@@ -92,7 +92,7 @@ if __name__ == "__main__":
 
         # Training loop
         for epoch in range(epochs):
-            loop = tqdm(train_dataloader, leave=True)
+            loop = tqdm(dataloader, leave=True)
             for i, batch in enumerate(loop):
                 print(loop)
                 optim.zero_grad()
