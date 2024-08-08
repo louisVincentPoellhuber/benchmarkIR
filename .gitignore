@@ -1,3 +1,5 @@
 wandb/
 .vscode/
 LM-TFM/
+beir/
+attn_transformers/
