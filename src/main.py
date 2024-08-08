@@ -1,4 +1,4 @@
-from transformers import RobertaConfig, get_scheduler
+from transformers import RobertaConfig, get_scheduler,PretrainedConfig
 from torch.optim import AdamW
 from accelerate import Accelerator, DistributedDataParallelKwargs
 from datasets import load_dataset
@@ -6,13 +6,14 @@ from datasets import load_dataset
 import argparse
 import wandb
 import time
+import json
 
 from preprocessing import *
 from models import *
 
 def parse_arguments():
     argparser = argparse.ArgumentParser("BenchmarkIR Script")
-    argparser.add_argument('--config', type=str)
+    argparser.add_argument('--config_path', default="/u/poellhul/Documents/Masters/benchmarkIR/src/configs/default.json")
     #argparser.add_argument('--input_dir', default="/part/01/Tmp/lvpoellhuber/datasets")
     #argparser.add_argument('--model_dir', default="/part/01/Tmp/lvpoellhuber/models/custom_roberta/roberta_mlm")
     #argparser.add_argument('--tokenizer_dir', default="/part/01/Tmp/lvpoellhuber/models/custom_roberta/roberta_mlm")
@@ -55,15 +56,17 @@ def get_dataloader(tokenizer, paths, batch_size, dataset_path):
 if __name__ == "__main__":
     # Parse arguments
     args = parse_arguments()
-    config = args.config
-    settings = args.settings
+    with open(args.config_path) as fp: arg_dict = json.load(fp)
+
+    config = arg_dict["config"]
+    settings = arg_dict["settings"]
 
     # Main arguments
-    data_path = settings.datapath
-    dataset_path = settings.dataset
-    model_path = settings.model
-    tokenizer_path = settings.tokenizer
-    chkpt_path = settings.checkpoint
+    data_path = settings["datapath"]
+    dataset_path = settings["dataset"]
+    model_path = settings["model"]
+    tokenizer_path = settings["tokenizer"]
+    chkpt_path = os.path.join(model_path, "checkpoints")
 
     accelerator = Accelerator(log_with="wandb", kwargs_handlers=[DistributedDataParallelKwargs(find_unused_parameters=True)])
     device = accelerator.device 
@@ -71,17 +74,18 @@ if __name__ == "__main__":
     # Generate or load dataset + tokenizer
     paths = download_dataset(data_path)
     tokenizer = get_tokenizer(paths, tokenizer_path)
-    dataloader = get_dataloader(tokenizer, paths, dataset_path)
+    dataloader = get_dataloader(tokenizer, paths, settings["batch_size"], dataset_path)
     
     # Read the config
     print("Initializing training. ")
-    config = RobertaConfig(config)
+    config = RobertaConfig.from_dict(config)
     config.vocab_size = tokenizer.vocab_size+4
+    print(config)
 
     model = RobertaForMaskedLM(config)
     model.to(device)
 
-    optim = AdamW(model.parameters(), settings.lr) # typical range is 1e-6 to 1e-4
+    optim = AdamW(model.parameters(), settings["lr"]) # typical range is 1e-6 to 1e-4
 
     # Number of training epochs and warmup steps
     epochs = 2
@@ -103,19 +107,19 @@ if __name__ == "__main__":
 
     print("Beginnig training process. ")
     # WandB stuff
-    if args.logging:
+    if settings["logging"]:
         wandb.login(key=os.getenv("WANDB_KEY"))
         run = wandb.init(
             project = "benchmarkIR",
-            config = vars(args)
+            config = vars(settings + config)
         )
         accelerator.init_trackers("benchmarkIR")
 
     # You can add a config here, for the experiment
-
-    if args.checkpoint != None:
-        accelerator.print(f"Resumed from checkpoint: {args.checkpoint}")
-        accelerator.load_state(args.checkpoint, strict=False)
+    
+    if settings["use_checkpoint"]:
+        accelerator.print(f"Resumed from checkpoint: {chkpt_path}")
+        accelerator.load_state(chkpt_path, strict=False)
 
     # Training loop
     for epoch in range(epochs):
@@ -142,7 +146,7 @@ if __name__ == "__main__":
             #if i%1000==0:
             #wandb.log({"loss": loss})
             accelerator.log({"loss": loss})
-            if i%10000==0:
+            if (i%10000==0) & (i!=0):
                 accelerator.save_state(chkpt_path)
 
             loop.set_description(f'Epoch: {epoch}')

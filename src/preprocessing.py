@@ -8,7 +8,7 @@ from tokenizers import ByteLevelBPETokenizer
 import torch
 
 
-def parse_arguments():
+def parse_arguments_new():
     argparser = argparse.ArgumentParser("masked language modeling")
     argparser.add_argument('--config', type=str)
     argparser.add_argument('--input_dir', default="/part/01/Tmp/lvpoellhuber/datasets")
