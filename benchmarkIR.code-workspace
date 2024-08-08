@@ -1,0 +1,15 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": "../../../../../part/01/Tmp/lvpoellhuber"
+		},
+		{
+			"name": "benchmarkIR-1",
+			"path": "../benchmarkIR-1"
+		}
+	],
+	"settings": {}
+}

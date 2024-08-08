@@ -1,0 +1,20 @@
+{
+    "settings": {
+        "datapath":"/part/01/Tmp/lvpoellhuber/datasets/wikipedia", 
+        "datasets":"/part/01/Tmp/lvpoellhuber/datasets/wikipedia/dataset.pt", 
+        "model": "/part/01/Tmp/lvpoellhuber/models/custom_roberta/roberta_mlm",
+        "tokenizer": "/part/01/Tmp/lvpoellhuber/models/custom_roberta/roberta_mlm",
+        "batch_size": 16, 
+        "lr": 1e-5,
+        "checkpoint": null, 
+        "logging": false
+    },
+    "config": {
+        "max_position_embeddings": 514,
+        "hidden_size": 768,
+        "num_attention_heads": 12,
+        "num_hidden_layers": 6,
+        "type_vocab_size": 1,
+        "attn_mechanism": "eager"
+    }
+}
