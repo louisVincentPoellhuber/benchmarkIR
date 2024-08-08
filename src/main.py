@@ -13,15 +13,8 @@ from models import *
 
 def parse_arguments():
     argparser = argparse.ArgumentParser("BenchmarkIR Script")
-    argparser.add_argument('--config_path', default="/u/poellhul/Documents/Masters/benchmarkIR/src/configs/default.json")
-    #argparser.add_argument('--input_dir', default="/part/01/Tmp/lvpoellhuber/datasets")
-    #argparser.add_argument('--model_dir', default="/part/01/Tmp/lvpoellhuber/models/custom_roberta/roberta_mlm")
-    #argparser.add_argument('--tokenizer_dir', default="/part/01/Tmp/lvpoellhuber/models/custom_roberta/roberta_mlm")
-    #argparser.add_argument('--batch_size', default=16) # TODO: same
-    #argparser.add_argument('--checkpoint', default=None)
-    #argparser.add_argument('--attention', default="default") # default, adaptive, bpt, dynamic
-    #argparser.add_argument('--logging', default=False) # default, adaptive, dtp
-
+    argparser.add_argument('--config', default="adaptive") # default, adaptive, dtp
+    
     args = argparser.parse_args()
 
     return args
@@ -56,7 +49,8 @@ def get_dataloader(tokenizer, paths, batch_size, dataset_path):
 if __name__ == "__main__":
     # Parse arguments
     args = parse_arguments()
-    with open(args.config_path) as fp: arg_dict = json.load(fp)
+    config_path = os.path.join("/u/poellhul/Documents/Masters/benchmarkIR/src/configs", args.config+".json")
+    with open(config_path) as fp: arg_dict = json.load(fp)
 
     config = arg_dict["config"]
     settings = arg_dict["settings"]
@@ -142,9 +136,7 @@ if __name__ == "__main__":
             accelerator.backward(loss)
             optim.step()
             scheduler.step()
-            #print("\n\n\n\nStep\n\n\n\n")
-            #if i%1000==0:
-            #wandb.log({"loss": loss})
+
             accelerator.log({"loss": loss})
             if (i%10000==0) & (i!=0):
                 accelerator.save_state(chkpt_path)

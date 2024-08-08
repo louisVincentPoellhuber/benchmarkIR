@@ -1,16 +1,30 @@
 {
-    "max_position_embeddings": 514,
-    "hidden_size": 768,
-    "num_attention_heads": 12,
-    "num_hidden_layers": 6,
-    "type_vocab_size": 1,
-    "attn_mechanism": "adaptive",
-    "inner_hidden_size": 1024,
-    "dropout": 0,
-    "attn_span": 1024,
-    "adapt_span_enabled":true,
-    "adapt_span_loss": 2e-06,
-    "adapt_span_ramp": 32,
-    "adapt_span_init": 0,
-    "adapt_span_cache": true
+    "settings": {
+        "datapath": "/part/01/Tmp/lvpoellhuber/datasets/wikipedia",
+        "dataset": "/part/01/Tmp/lvpoellhuber/datasets/wikipedia/dataset.pt",
+        "model": "/part/01/Tmp/lvpoellhuber/models/custom_roberta/adaptive_mlm",
+        "tokenizer": "/part/01/Tmp/lvpoellhuber/models/custom_roberta/roberta_mlm",
+        "use_checkpoint": false,
+        "batch_size": 16,
+        "lr": 1e-5,
+        "logging": false,
+        "train": true, 
+        "eval": false
+    },
+    "config": {
+        "max_position_embeddings": 514,
+        "hidden_size": 768,
+        "num_attention_heads": 12,
+        "num_hidden_layers": 6,
+        "type_vocab_size": 1,
+        "attn_mechanism": "adaptive",
+        "inner_hidden_size": 1024,
+        "dropout": 0,
+        "attn_span": 1024,
+        "adapt_span_enabled": true,
+        "adapt_span_loss": 2e-06,
+        "adapt_span_ramp": 32,
+        "adapt_span_init": 0,
+        "adapt_span_cache": true
+    }
 }
