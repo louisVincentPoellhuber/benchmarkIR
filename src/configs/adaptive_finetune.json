@@ -18,10 +18,10 @@
         "lr": 1e-5,
         "use_checkpoint": true, 
         "logging": false,
-        "train": true, 
-        "eval": true 
+        "train": false
     },
     "eval_args": {
+        "eval": true,
         "dataset":"/part/01/Tmp/lvpoellhuber/datasets/glue/mnli/mnli_val.pt",
         "model": "/part/01/Tmp/lvpoellhuber/models/custom_roberta/adaptive_glue"
 

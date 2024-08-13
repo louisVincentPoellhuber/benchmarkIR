@@ -13,7 +13,7 @@ from models import *
 
 def parse_arguments():
     argparser = argparse.ArgumentParser("BenchmarkIR Script")
-    argparser.add_argument('--config', default="adaptive") # default, adaptive, dtp
+    argparser.add_argument('--config', default="sparse") # default, adaptive, dtp
     
     args = argparser.parse_args()
 
@@ -113,6 +113,8 @@ if __name__ == "__main__":
             loss = outputs.loss
             #loss.backward() # again, replaced by the accelerator version
             accelerator.backward(loss)
+            print(model.roberta.encoder.layer[0].attention.self.alpha.grad)
+            #print(model.roberta.encoder.layer[0].attention.self.seq_attention.adaptive_span._mask.current_val.grad)
             optim.step()
             scheduler.step()
 

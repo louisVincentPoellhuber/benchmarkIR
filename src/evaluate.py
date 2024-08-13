@@ -127,7 +127,7 @@ if __name__ == "__main__":
             save_function=accelerator.save,
         )
 
-    if args["do_eval"]:    
+    if eval_args["eval"]:    
         val_dataloader = get_dataloader(train_args["batch_size"], eval_args["dataset"])
 
         config = RobertaConfig.from_dict(config)

@@ -9,7 +9,7 @@
         "preprocess": false,
         "dataset": "wikipedia", 
         "train_tokenizer": false, 
-        "overwrite": true
+        "overwrite": false
     },
     "train_args": {
         "dataset":"/part/01/Tmp/lvpoellhuber/datasets/wikipedia/dataset.pt", 
@@ -28,6 +28,6 @@
         "num_attention_heads": 12,
         "num_hidden_layers": 6,
         "type_vocab_size": 1,
-        "attn_mechanism": "eager"
+        "attn_mechanism": "sparse"
     }
 }

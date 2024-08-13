@@ -9,7 +9,7 @@
         "preprocess": false,
         "dataset": "wikipedia", 
         "train_tokenizer": false, 
-        "overwrite": true
+        "overwrite": false
     },
     "train_args": {
         "dataset":"/part/01/Tmp/lvpoellhuber/datasets/wikipedia/dataset.pt", 
