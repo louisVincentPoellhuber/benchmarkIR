@@ -4,7 +4,8 @@
         "dataset": "/part/01/Tmp/lvpoellhuber/datasets/wikipedia/dataset.pt",
         "model": "/part/01/Tmp/lvpoellhuber/models/custom_roberta/adaptive_mlm",
         "tokenizer": "/part/01/Tmp/lvpoellhuber/models/custom_roberta/roberta_mlm",
-        "checkpoint": null
+        "checkpoint": null,
+        "accelerate": true
 
     },
     "preprocess_args": {

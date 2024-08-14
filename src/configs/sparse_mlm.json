@@ -3,7 +3,8 @@
         "datapath":"/part/01/Tmp/lvpoellhuber/datasets/wikipedia", 
         "model": "/part/01/Tmp/lvpoellhuber/models/custom_roberta/roberta_mlm",
         "tokenizer": "/part/01/Tmp/lvpoellhuber/models/custom_roberta/roberta_mlm", 
-        "checkpoint": null
+        "checkpoint": null, 
+        "accelerate": true
     },
     "preprocess_args": {
         "preprocess": false,

@@ -1,12 +1,23 @@
+from models import *
 
-import torch
-from entmax.root_finding import EntmaxBisectFunction
 
-X = torch.randn(16, 12, 512, 512, requires_grad=True)
-alpha = torch.tensor([1.5] * 12, requires_grad=True)
+model = RobertaForMaskedLM(config)
 
-output = EntmaxBisectFunction.apply(X, alpha.view(1, 12, 1, 1))
-loss = output.sum()
+
+print(f"Gradient before scaling: {model.alpha.grad}")
+
+def scale_gradients(grad):
+    return grad * 1000  # Example scaling factor
+
+model.alpha.register_hook(scale_gradients)
+
+# Perform forward and backward pass
+loss = loss_fn(output, target)
 loss.backward()
 
-print(alpha.grad)  # Should not be None
+print(f"Scaled gradient: {model.alpha.grad}")
+
+optimizer.step()
+optimizer.zero_grad()
+
+print(f"Alpha parameter after step: {model.alpha}")

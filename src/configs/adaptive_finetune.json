@@ -3,7 +3,8 @@
         "datapath":"/part/01/Tmp/lvpoellhuber/datasets/glue/mnli", 
         "model": "/part/01/Tmp/lvpoellhuber/models/custom_roberta/adaptive_glue",
         "tokenizer": "/part/01/Tmp/lvpoellhuber/models/custom_roberta/roberta_mlm",
-        "checkpoint": "/part/01/Tmp/lvpoellhuber/models/custom_roberta/adaptive_mlm"
+        "checkpoint": "/part/01/Tmp/lvpoellhuber/models/custom_roberta/adaptive_mlm",
+        "accelerate": true
     },
     "preprocess_args": {
         "preprocess": false,

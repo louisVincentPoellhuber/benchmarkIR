@@ -54,6 +54,8 @@ logger = logging.get_logger(__name__)
 _CHECKPOINT_FOR_DOC = "FacebookAI/roberta-base"
 _CONFIG_FOR_DOC = "RobertaConfig"
 
+def scale_gradients(grad):
+    return grad * 10000000000000000
 
 class RobertaEmbeddings(nn.Module):
     """
@@ -295,6 +297,7 @@ class RobertaSparseSelfAttention(nn.Module):
         self.all_head_size = self.num_attention_heads * self.attention_head_size
 
         self.alpha = nn.Parameter(torch.rand(self.num_attention_heads) + 1) # Random values between 1 and 2
+        #self.alpha.register_hook(scale_gradients)
 
         self.query = nn.Linear(config.hidden_size, self.all_head_size)
         self.key = nn.Linear(config.hidden_size, self.all_head_size)
