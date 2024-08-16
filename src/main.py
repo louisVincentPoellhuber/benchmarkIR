@@ -13,7 +13,7 @@ from models import *
 
 def parse_arguments():
     argparser = argparse.ArgumentParser("BenchmarkIR Script")
-    argparser.add_argument('--config', default="sparse") # default, adaptive, dtp
+    argparser.add_argument('--config', default="adaptive") # default, adaptive, sparse
     
     args = argparser.parse_args()
 
@@ -37,7 +37,7 @@ if __name__ == "__main__":
     dataset_path = train_args["dataset"]
     model_path = settings["model"]
     tokenizer_path = settings["tokenizer"]
-    chkpt_path = settings["checkpoint"] if not None else os.path.join(model_path, "checkpoints")
+    chkpt_path = settings["checkpoint"] if settings["checkpoint"] != None else os.path.join(model_path, "checkpoints")
 
     if enable_accelerate:
         print("Accelerate enabled. ")
@@ -65,19 +65,22 @@ if __name__ == "__main__":
     model.to(device)
 
 
-    #optim = AdamW(model.parameters(), lr=train_args["lr"]) # typical range is 1e-6 to 1e-4
-    alpha_params = []
-    for i in range(len(model.roberta.encoder.layer)):
-        alpha_params.append(model.roberta.encoder.layer[i].attention.self.alpha)
-    # Collect all parameters excluding the alpha parameters
-    other_params = []
-    for name, param in model.named_parameters():
-        if not name.endswith('attention.self.alpha'):
-            other_params.append(param)
-    optim = AdamW([
-            {'params': other_params, 'lr': 1e-5},  # Default learning rate for most parameters
-            {'params': alpha_params, 'lr': 10.0}          # Higher learning rate for alpha
-        ])
+    # For sparse attention 
+    if config.attn_mechanism == "sparse":
+        alpha_params = []
+        for i in range(len(model.roberta.encoder.layer)):
+            alpha_params.append(model.roberta.encoder.layer[i].attention.self.alpha)
+
+        other_params = []
+        for name, param in model.named_parameters():
+            if not name.endswith('attention.self.alpha'):
+                other_params.append(param)
+        optim = AdamW([
+                {'params': other_params, 'lr': 1e-5},  # Default learning rate for most parameters
+                {'params': alpha_params, 'lr': 10.0}          # Higher learning rate for alpha
+            ])
+    else:
+        optim = AdamW(model.parameters(), lr=train_args["lr"]) # typical range is 1e-6 to 1e-4
 
     # Number of training epochs and warmup steps
     epochs = train_args["epochs"]
@@ -104,14 +107,13 @@ if __name__ == "__main__":
         wandb.login(key=os.getenv("WANDB_KEY"))
         run = wandb.init(
             project = "benchmarkIR",
-            config = vars(settings + config)
+            config = vars(config)
         )
         
         if enable_accelerate: accelerator.init_trackers("benchmarkIR")
 
     # You can add a config here, for the experiment
-
-    
+   
     #if train_args["use_checkpoint"]: # TODO: Figure out how to use checkpoint
     #    accelerator.print(f"Resumed from checkpoint: {chkpt_path}")
     #    accelerator.load_state(chkpt_path, strict=False)
@@ -131,8 +133,6 @@ if __name__ == "__main__":
                 mask = batch["attention_mask"].to(device)
                 labels = batch["labels"].to(device)
 
-            #print("Before scaling")
-            #print(model.roberta.encoder.layer[0].attention.self.alpha)
             outputs = model(input_ids, attention_mask = mask, labels = labels) # All three 16x512
 
             loss = outputs.loss
@@ -142,20 +142,38 @@ if __name__ == "__main__":
             else:
                 loss.backward() 
 
-            #print("After backpass")
-            #print(model.roberta.encoder.layer[0].attention.self.alpha)
-            #print(model.roberta.encoder.layer[0].attention.self.seq_attention.adaptive_span._mask.current_val.grad)
-            
+            #print(model.roberta.encoder.layer[0].attention.self.seq_attention.mask.current_val)
+
             optim.step()
-            #print("After optim")
             
             scheduler.step()
-            print("\nAFter optim")
-
             if enable_accelerate:
-                accelerator.log({"loss": loss})
                 if (i%10000==0) & (i!=0):
                     accelerator.save_state(chkpt_path)
+                
+                if config.attn_mechanism =="sparse":
+                    original_model = accelerator.unwrap_model(model)
+                    log_dict = {"loss": loss}
+                    for layer_nb, layer in enumerate(original_model.roberta.encoder.layer):
+                        alphas = layer.attention.self.alpha.data
+                        names = [f"layer_{layer_nb}_alpha_"+str(i) for i in range(len(alphas))]
+                        alpha_dict = dict(zip(names, alphas))
+                        log_dict.update(alpha_dict)
+                    accelerator.log(log_dict)
+
+                elif config.attn_mechanism == "adaptive":
+                    original_model = accelerator.unwrap_model(model)
+                    log_dict = {"loss": loss}
+                    for layer_nb, layer in enumerate(original_model.roberta.encoder.layer):
+                        spans = layer.attention.self.seq_attention.mask.current_val.data
+                        names = [f"layer_{layer_nb}_span_"+str(i) for i in range(len(spans))]
+                        span_dict = dict(zip(names, spans))
+                        log_dict.update(span_dict)
+                    accelerator.log(log_dict)
+
+                else:
+                    accelerator.log({"loss": loss})
+
             elif train_args["logging"]:
                 wandb.log({"loss": loss})
 

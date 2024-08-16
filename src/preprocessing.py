@@ -252,5 +252,5 @@ def preprocess_main(dataset, datapath, tokenizer_path, train_tokenizer, overwrit
 if __name__ == "__main__":
     
     args = parse_arguments()
-
+    
     preprocess_main(args.dataset, args.datapath, args.tokenizer_path, args.train_tokenizer, args.overwrite)

@@ -450,20 +450,13 @@ class RobertaAdaptiveSelfAttention(nn.Module):
             self.max_position_embeddings = config.max_position_embeddings
             self.distance_embedding = nn.Embedding(2 * config.max_position_embeddings - 1, self.attention_head_size)
 
-        self.is_decoder = config.is_decoder
-        self.multihead_seq_attention = MultiHeadSeqAttention(config)        
+        self.is_decoder = config.is_decoder     
         self.seq_attention = SeqAttention(config)
+        
 
     def transpose_for_scores(self, x: torch.Tensor) -> torch.Tensor:
-        #print("\nInside the transposition. ")
-        #print(f"X: {x.size()}")
-        #print(f"Kept dimension: {x.size()[:-1]}")
-        #print(f"num_attention_heads = {self.num_attention_heads}")
-        #print(f"attention_head_size = {self.attention_head_size}")
         new_x_shape = x.size()[:-1] + (self.num_attention_heads, self.attention_head_size)
-        #print(f"New X shape:{new_x_shape}")
         x = x.view(new_x_shape)
-        #print(f"X: {x.shape}")
         return x.permute(0, 2, 1, 3) 
 
     def forward(
@@ -499,24 +492,12 @@ class RobertaAdaptiveSelfAttention(nn.Module):
             key_layer = torch.cat([past_key_value[0], key_layer], dim=2)
             value_layer = torch.cat([past_key_value[1], value_layer], dim=2)
         else: # This is where we enter
-            #print("\nInside the Adaptive Self Attention. ")
-            #print(f"Expected shape: hidden_size = {self.config.hidden_size} x all_head_size = {self.all_head_size}")
-            #print(f"Key layer: {self.key(hidden_states).shape}")
             key_layer = self.transpose_for_scores(self.key(hidden_states))
-            #key_layer = self.key(hidden_states)
-            #print(f"Value layer: {self.value(hidden_states).shape}")
             value_layer = self.transpose_for_scores(self.value(hidden_states))
-            #value_layer = self.value(hidden_states)
 
-        #print(f"Query layer: {self.query(hidden_states).shape}")
+
         query_layer = self.transpose_for_scores(mixed_query_layer)
-        #query_layer = mixed_query_layer
-
-        #print("\nPost transposition.")
-        #print(f"Key layer: {key_layer.shape}")
-        #print(f"Value layer: {value_layer.shape}")
-        #print(f"Query layer: {query_layer.shape}")
-
+ 
         use_cache = past_key_value is not None # It is none
         if self.is_decoder: # Not a decoder
             # if cross_attention save Tuple(torch.Tensor, torch.Tensor) of all cross attention key/value_states.
@@ -528,10 +509,10 @@ class RobertaAdaptiveSelfAttention(nn.Module):
             # if encoder bi-directional self-attention `past_key_value` is always `None`
             past_key_value = (key_layer, value_layer)
 
-        #context_layer = self.multihead_seq_attention(query_layer, key_layer, value_layer)
         context_layer = self.seq_attention(query_layer, key_layer, value_layer)
-        #print(f"\nNew output: {context_layer.shape}")
+        #print(f"\nNew output: {context_layer}")
 
+        
         context_layer = context_layer.permute(0, 2, 1, 3).contiguous()
         new_context_layer_shape = context_layer.size()[:-2] + (self.all_head_size,)
         context_layer = context_layer.view(new_context_layer_shape)

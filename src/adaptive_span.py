@@ -15,6 +15,7 @@ import torch.nn.functional as F
 
 from typing import Optional, Tuple
 
+
 # Size notations:
 # B = batch_size, H = hidden_size, M = block_size, L = attn_span
 
@@ -45,28 +46,20 @@ class AdaptiveMask(nn.Module):
         nn.Module.__init__(self)
         self._max_size = max_size
         self._ramp_size = ramp_size
-        self.current_val = nn.Parameter(torch.zeros(*shape) + init_val)
+        self.current_val = nn.Parameter(torch.zeros(shape) + init_val, requires_grad=True)
         mask_template = torch.linspace(1 - max_size, 0, steps=max_size)
         self.register_buffer('mask_template', mask_template)
 
     def forward(self, x):
-        #print("\nInside the Adaptive Mask. ")
-        #print(f"Mask template: {self.mask_template.shape}")
-        #print(f"Current val (attention span?): {self.current_val}") # 12, number of heads (makes sense!)
-        #print(f"Max size: {self._max_size}")
-        #print(f"Ramp size: {self._ramp_size}")
+       #scaled_val = self.current_val * self._max_size
         mask = self.mask_template + self.current_val * self._max_size
         mask = mask / self._ramp_size + 1
         mask = mask.clamp(0, 1)
 
-        #print(f"X size -1: {x.size(-1)}")
         if x.size(-1) < self._max_size:
-            #print("X's last dimension is smaller than the max size.")
             # the input could have been trimmed beforehand to save computation
             mask = mask[:, :, -x.size(-1):]
-            #print(f"Final mask: {mask.shape}")
         x = x * mask
-        #print(f"Final X: {x.shape}")
         return x
 
     def get_current_max_size(self, include_ramp=True):
@@ -119,8 +112,8 @@ class AdaptiveSpan(nn.Module):
         M = attn.size(1) # block size = 512
         #attn = attn.reshape(B // self._num_attention_heads, self._num_attention_heads, M, -1)
 
-        
         attn = self._mask(attn)
+
         if normalize:
             attn = attn / (attn.sum(-1, keepdim=True) + 1e-8)  # normalize so sum is 1
         
@@ -212,51 +205,39 @@ class SeqAttention(nn.Module):
         self.dropout = nn.Dropout(config.dropout)
         self.hidden_size = config.hidden_size # size of a single head
         self.attn_span = config.attn_span
+        self.mask = AdaptiveMask(max_size=config.attn_span,
+                                 ramp_size=config.adapt_span_ramp,
+                                 init_val=config.adapt_span_init,
+                                 shape=(config.num_attention_heads, 1, 1))
+
 
         self.adaptive_span = AdaptiveSpan(config)
     
     # Size notations:
     # B = batch_size (16), H = hidden_size (768), M = block_size (512), L = attn_span (?)
-    def forward(self, query, key, value): # 16x12x512x64
-            ##print("\nInside the SeqAttention.")
-            ##print(f"Query: {query.shape}")
-            ##print(f"Key: {key.shape}")
-            ##print(f"Value: {value.shape}")
-            # query size = B x M x H correct
-            # key, value sizes = B x (M+L) x H no, just B x M x H
-
+    def forward(self, query, key, value): # 16x12x512x64<
             # [optional] trim out memory to reduce unnecessary computation
             #key, value, key_pe = self.adaptive_span.trim_memory(
              #   query, key, value, key_pe)
 
             # compute attention from context
-            # B x M (dest) x (M+L) (src) --> B x M x M
-            ##print(f"K^T: {key.transpose(-1, -2).shape}")
+            # B x M (dest) x (M+L) (src) --> B x M x M<
             attn_cont = torch.matmul(query, key.transpose(-1, -2))
             ##print(f"Context attention (QK^T): {attn_cont.shape}")
             #attn_cont = _unskew(attn_cont)  # B x M x L
 
             # compute the effect of position embedding
-            # Removed, because we are using absolute positional encodings. 
-            #attn_pos = torch.matmul(query, key_pe)  # B x M x L_pos
-            #attn = attn_cont + attn_pos
+            # Removed, because we are using absolute positional encodings. <
 
             attn = attn_cont / math.sqrt(self.hidden_size)  # B x M X L_pos
-            ##print(f"Softmax term (QK^T / sqrt(d_k)): {attn.shape}")
+
             attn = F.softmax(attn, dim=-1)
-            ##print(f"After softmax (softmax(QK^T / sqrt(d_k))): {attn.shape}")
+
 
             # trim attention lengths according to the learned span
-            attn = self.adaptive_span(attn)
-            ##print(f"\nAfter adaptive span: {attn.shape}")
-
-            #attn = self.dropout(attn)  # B x M X L_pos
-            ##print(f"After dropout: {attn.shape}")
-
-            #attn_cont = _skew(attn, 0)  # B x M X (L+M)
+            attn_cont = self.mask(attn_cont)
 
             out = torch.matmul(attn_cont, value)  # B x M x H
-            ##print(f"Final attention computation, with V (softmax(...)V): {out.shape}")
 
             return out
 

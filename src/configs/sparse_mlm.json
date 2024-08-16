@@ -1,7 +1,7 @@
 {
     "settings": {
         "datapath":"/part/01/Tmp/lvpoellhuber/datasets/wikipedia", 
-        "model": "/part/01/Tmp/lvpoellhuber/models/custom_roberta/roberta_mlm",
+        "model": "/part/01/Tmp/lvpoellhuber/models/custom_roberta/sparse_mlm",
         "tokenizer": "/part/01/Tmp/lvpoellhuber/models/custom_roberta/roberta_mlm", 
         "checkpoint": null, 
         "accelerate": true
@@ -18,7 +18,7 @@
         "batch_size": 16, 
         "lr": 1e-5,
         "use_checkpoint": false, 
-        "logging": false,
+        "logging": true,
         "train": true, 
         "eval": false
     },

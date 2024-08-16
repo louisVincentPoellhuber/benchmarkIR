@@ -1,23 +1,10 @@
 from models import *
+from adaptive_span import AdaptiveMask
+from torch.autograd import gradcheck
 
+input_tensor = torch.rand(16, 12, 512, 512, dtype=torch.float64, requires_grad=True)
 
-model = RobertaForMaskedLM(config)
+mask = AdaptiveMask(max_size=1024, ramp_size=32)
 
-
-print(f"Gradient before scaling: {model.alpha.grad}")
-
-def scale_gradients(grad):
-    return grad * 1000  # Example scaling factor
-
-model.alpha.register_hook(scale_gradients)
-
-# Perform forward and backward pass
-loss = loss_fn(output, target)
-loss.backward()
-
-print(f"Scaled gradient: {model.alpha.grad}")
-
-optimizer.step()
-optimizer.zero_grad()
-
-print(f"Alpha parameter after step: {model.alpha}")
+test = gradcheck(AdaptiveMask.forward, (mask, input_tensor,), eps=1e-6, atol=1e-4)
+print("Gradient check passed:", test)
