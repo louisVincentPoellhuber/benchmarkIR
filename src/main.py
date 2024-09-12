@@ -1,6 +1,7 @@
 from transformers import RobertaConfig, get_scheduler,PretrainedConfig
 from torch.optim import AdamW
 from accelerate import Accelerator, DistributedDataParallelKwargs
+from configuration_custom import CustomRobertaConfig
 
 import argparse
 import wandb
@@ -57,7 +58,7 @@ if __name__ == "__main__":
     
     # Read the config
     print("Initializing training. ")
-    config = RobertaConfig.from_dict(config)
+    config = CustomRobertaConfig.from_dict(config)
     config.vocab_size = tokenizer.vocab_size+4
     print(config)
 

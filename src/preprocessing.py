@@ -25,8 +25,8 @@ class Dataset(torch.utils.data.Dataset):
 
 def parse_arguments():
     argparser = argparse.ArgumentParser("masked language modeling")
-    argparser.add_argument('--dataset', default="wikipedia") # wikipedia
-    argparser.add_argument('--datapath', default="/part/01/Tmp/lvpoellhuber/datasets/wikipedia") 
+    argparser.add_argument('--task', default="glue") # wikipedia
+    argparser.add_argument('--datapath', default="/part/01/Tmp/lvpoellhuber/datasets") 
     argparser.add_argument('--tokenizer_path', default="/part/01/Tmp/lvpoellhuber/models/custom_roberta/roberta_mlm")
     argparser.add_argument('--train_tokenizer', default=False) # wikipedia
     argparser.add_argument('--overwrite', default=False) # wikipedia
@@ -48,6 +48,8 @@ def get_dataloader(batch_size, dataset_path):
     dataloader = torch.utils.data.DataLoader(dataset, batch_size = batch_size, shuffle=True)
 
     return dataloader
+
+
 def train_BPETokenizer(files, save_dir):
     tokenizer = ByteLevelBPETokenizer()
 
@@ -181,7 +183,7 @@ Input
 
 The function has no output, but will save the two necessary files locally: the tokenizer and the dataset. 
 '''
-def preprocess_mnli(data_path, tokenizer_path, overwrite=False):
+def preprocess_glue(task, data_path, tokenizer_path, overwrite):
     
     ''' Creates a dataset object. To do so, the function iterates through the files in the eval 
     data split and tokenizes all the lines found inside. It then creates a Dataset object and saves it. 
@@ -191,7 +193,7 @@ def preprocess_mnli(data_path, tokenizer_path, overwrite=False):
         paths: The sample files to feed to the tokenizer. 
         save_path: Where to save the dataset object. 
     '''
-    def generate_dataset(data, tokenizer, save_path, split, overwrite=False):
+    def generate_two_sentence_dataset(sentence1, sentence2, data, tokenizer, save_path, split, overwrite):
         if os.path.exists(save_path) & ~overwrite:
             print("Loading dataset. ")
             dataset = Dataset(torch.load(save_path))
@@ -204,12 +206,49 @@ def preprocess_mnli(data_path, tokenizer_path, overwrite=False):
             labels = []
 
             for i in tqdm(range(len(data_split))):
-                sequence = data_split[i]["premise"] + ". " + data_split[i]["hypothesis"]
+                sequence = data_split[i][sentence1] + "</s></s>" + data_split[i][sentence2]
                 tokenized_seq = tokenizer(sequence, max_length=512, padding="max_length", truncation=True, return_tensors = "pt")
                 
                 input_ids.append(tokenized_seq.input_ids)
                 mask.append(tokenized_seq.attention_mask)
                 labels.append(data_split[i]["label"])
+
+            
+            input_ids = torch.cat(input_ids) # concatenate all the tensors
+            mask = torch.cat(mask) 
+            labels = torch.Tensor(labels).long()
+
+            encodings = {
+                "input_ids": input_ids, # tokens with mask 
+                "attention_mask": mask,
+                "labels": labels # tokens without mask
+            }
+
+            dataset = Dataset(encodings)
+            dataset.save(save_path)
+
+        return dataset
+    
+    def generate_single_sentence_dataset(sentence, data, tokenizer, save_path, split, overwrite):
+        if os.path.exists(save_path) & ~overwrite:
+            print("Loading dataset. ")
+            dataset = Dataset(torch.load(save_path))
+        else:
+            print("Generating dataset object. ")
+            data_split = data[split]
+
+            input_ids = []
+            mask = []
+            labels = []
+
+            for i in tqdm(range(len(data_split))):
+                sequence = data_split[i][sentence]
+                tokenized_seq = tokenizer(sequence, max_length=512, padding="max_length", truncation=True, return_tensors = "pt")
+                
+                input_ids.append(tokenized_seq.input_ids)
+                mask.append(tokenized_seq.attention_mask)
+                labels.append(data_split[i]["label"])
+
             
             input_ids = torch.cat(input_ids) # concatenate all the tensors
             mask = torch.cat(mask) 
@@ -227,30 +266,76 @@ def preprocess_mnli(data_path, tokenizer_path, overwrite=False):
         return dataset
 
     # Download the dataset
-    data = load_dataset("glue", "mnli", cache_dir=DATASETS_PATH)
+    data = load_dataset("glue", task, cache_dir=DATASETS_PATH)
     tokenizer = get_tokenizer(tokenizer_path)
 
-    save_path = os.path.join(data_path, "mnli_train.pt")
-    generate_dataset(data, tokenizer, save_path, "train", overwrite)
-    save_path = os.path.join(data_path, "mnli_val.pt")
-    generate_dataset(data, tokenizer, save_path, "validation_matched", overwrite)
-    
+    if task=="mnli":
+        save_path = os.path.join(data_path, task+"_train.pt")
+        generate_two_sentence_dataset("premise", "hypothesis", data, tokenizer, save_path, "train", overwrite)
+        save_path = os.path.join(data_path, task+"_test.pt")
+        generate_two_sentence_dataset("premise", "hypothesis", data, tokenizer, save_path, "validation_matched", overwrite)
+    elif task=="mrpc":
+        save_path = os.path.join(data_path, task+"_train.pt")
+        generate_two_sentence_dataset("sentence1", "sentence2", data, tokenizer, save_path, "train", overwrite)
+        save_path = os.path.join(data_path, task+"_test.pt")
+        generate_two_sentence_dataset("sentence1", "sentence2", data, tokenizer, save_path, "test", overwrite)
+    elif (task=="stsb") | (task=="wnli"):
+        save_path = os.path.join(data_path, task+"_train.pt")
+        generate_two_sentence_dataset("sentence1", "sentence2", data, tokenizer, save_path, "train", overwrite)
+        save_path = os.path.join(data_path, task+"_test.pt")
+        generate_two_sentence_dataset("sentence1", "sentence2", data, tokenizer, save_path, "validation", overwrite)
+    elif task=="rte":
+        save_path = os.path.join(data_path, task+"_train.pt")
+        generate_two_sentence_dataset("sentence1", "sentence2", data, tokenizer, save_path, "train", overwrite)
+        save_path = os.path.join(data_path, task+"_test.pt")
+        generate_two_sentence_dataset("sentence1", "sentence2", data, tokenizer, save_path, "validation", overwrite)
+    elif task=="qnli":
+        save_path = os.path.join(data_path, task+"_train.pt")
+        generate_two_sentence_dataset("question", "sentence", data, tokenizer, save_path, "train", overwrite)
+        save_path = os.path.join(data_path, task+"_test.pt")
+        generate_two_sentence_dataset("question", "sentence", data, tokenizer, save_path, "validation", overwrite)
+    elif task=="qqp":
+        save_path = os.path.join(data_path, task+"_train.pt")
+        generate_two_sentence_dataset("question1", "question2", data, tokenizer, save_path, "train", overwrite)
+        save_path = os.path.join(data_path, task+"_test.pt")
+        generate_two_sentence_dataset("question1", "question2", data, tokenizer, save_path, "validation", overwrite)
+    elif (task=="sst2") | (task=="cola"):
+        save_path = os.path.join(data_path, task+"_train.pt")
+        generate_single_sentence_dataset("sentence", data, tokenizer, save_path, "train", overwrite)
+        save_path = os.path.join(data_path, task+"_test.pt")
+        generate_single_sentence_dataset("sentence", data, tokenizer, save_path, "validation", overwrite)
+
+
 ''' Main preprocessing function. Directs which preprocessing pipeline to use. 
 Input
     dataset: Which dataset to preprocess. Choice between 'wikipedia', 'mnli'
     tokenizer_path: Where to save the tokenizer. 
     train_tokenizer: Whether to train the tokenizer.  
 '''
-def preprocess_main(dataset, datapath, tokenizer_path, train_tokenizer, overwrite):
-    if dataset=="wikipedia":
+def preprocess_main(task, datapath, tokenizer_path, train_tokenizer, overwrite=False):
+    if task=="wikipedia":
         preprocess_wikipedia(datapath, tokenizer_path, train_tokenizer, overwrite)
-    elif dataset=="mnli":
-        preprocess_mnli(datapath, tokenizer_path, overwrite)
+    elif task=="other_task":
+        #raise ValueError("Invalid dataset. Please choose one of the following: ['wikipedia'].")
+        pass
+    elif task=="glue": # Preprocess all tasks
+        #tasks = ["cola", "mnli", "mrpc", "qnli", "qqp", "rte", "sst2", "stsb", "wnli"]
+        tasks = ["mnli"]
+        for task in tasks:
+            print(f"============ Processing {task} ============")
+            task_datapath = os.path.join(datapath, task)
+
+            if not os.path.exists(task_datapath):
+                print(f"Making directory: {task_datapath}")
+                os.mkdir(task_datapath)
+
+            preprocess_glue(task, task_datapath, tokenizer_path, overwrite)
     else:
-        raise ValueError("Invalid dataset. Please choose one of the following: ['wikipedia'].")
+        preprocess_glue(task, datapath, tokenizer_path, overwrite)
+
 
 if __name__ == "__main__":
     
     args = parse_arguments()
     
-    preprocess_main(args.dataset, args.datapath, args.tokenizer_path, args.train_tokenizer, args.overwrite)
+    preprocess_main(args.task, args.datapath, args.tokenizer_path, args.train_tokenizer, args.overwrite)

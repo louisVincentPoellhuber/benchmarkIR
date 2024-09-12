@@ -44,6 +44,7 @@ from transformers.utils import (
     replace_return_docstrings,
 )
 from transformers import RobertaConfig
+from configuration_custom import CustomRobertaConfig
 
 from adaptive_span import *
 from entmax import entmax_bisect
@@ -834,8 +835,8 @@ class RobertaPreTrainedModel(PreTrainedModel):
     models.
     """
 
-    config_class = RobertaConfig
-    base_model_prefix = "roberta"
+    config_class = CustomRobertaConfig
+    base_model_prefix = "custom-roberta"
     supports_gradient_checkpointing = True
     _no_split_modules = ["RobertaEmbeddings", "RobertaSelfAttention"]
 
@@ -928,7 +929,7 @@ ROBERTA_INPUTS_DOCSTRING = r"""
     "The bare RoBERTa Model transformer outputting raw hidden-states without any specific head on top.",
     ROBERTA_START_DOCSTRING,
 )   
-class RobertaModel(RobertaPreTrainedModel):
+class CustomRobertaModel(RobertaPreTrainedModel):
     """
 
     The model can behave as an encoder (with only self-attention) as well as a decoder, in which case a layer of
@@ -1133,7 +1134,7 @@ class RobertaForCausalLM(RobertaPreTrainedModel):
         if not config.is_decoder:
             logger.warning("If you want to use `RobertaLMHeadModel` as a standalone, add `is_decoder=True.`")
 
-        self.roberta = RobertaModel(config, add_pooling_layer=False)
+        self.roberta = CustomRobertaModel(config, add_pooling_layer=False)
         self.lm_head = RobertaLMHead(config)
 
         # Initialize weights and apply final processing
@@ -1296,7 +1297,7 @@ class RobertaForMaskedLM(RobertaPreTrainedModel):
                 "bi-directional self-attention."
             )
 
-        self.roberta = RobertaModel(config, add_pooling_layer=False)
+        self.roberta = CustomRobertaModel(config, add_pooling_layer=False)
         self.lm_head = RobertaLMHead(config)
 
         # Initialize weights and apply final processing
@@ -1425,7 +1426,7 @@ class RobertaForSequenceClassification(RobertaPreTrainedModel):
         self.num_labels = config.num_labels
         self.config = config
 
-        self.roberta = RobertaModel(config, add_pooling_layer=False)
+        self.roberta = CustomRobertaModel(config, add_pooling_layer=False)
         self.classifier = RobertaClassificationHead(config)
 
         # Initialize weights and apply final processing
@@ -1522,7 +1523,7 @@ class RobertaForMultipleChoice(RobertaPreTrainedModel):
     def __init__(self, config):
         super().__init__(config)
 
-        self.roberta = RobertaModel(config)
+        self.roberta = CustomRobertaModel(config)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
         self.classifier = nn.Linear(config.hidden_size, 1)
 

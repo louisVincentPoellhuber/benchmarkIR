@@ -8,7 +8,7 @@
     },
     "preprocess_args": {
         "preprocess": false,
-        "dataset": "mnli", 
+        "task": "mnli", 
         "train_tokenizer": false, 
         "overwrite": false
     },
@@ -33,7 +33,7 @@
         "num_attention_heads": 12,
         "num_hidden_layers": 6,
         "type_vocab_size": 1,
-        "attn_mechanism": "eager",
+        "attn_mechanism": "adaptive",
         "num_labels":4,
         "inner_hidden_size": 1024,
         "dropout": 0,

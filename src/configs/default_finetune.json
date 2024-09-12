@@ -8,7 +8,7 @@
     },
     "preprocess_args": {
         "preprocess": false,
-        "dataset": "mnli", 
+        "task": "mnli", 
         "train_tokenizer": false, 
         "overwrite": false
     },
@@ -19,7 +19,7 @@
         "lr": 1e-5,
         "use_checkpoint": true, 
         "logging": false,
-        "train": false
+        "train": true
     },
     "eval_args": {
         "eval": true,

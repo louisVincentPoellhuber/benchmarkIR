@@ -8,7 +8,7 @@
     },
     "preprocess_args": {
         "preprocess": false,
-        "dataset": "wikipedia", 
+        "task": "wikipedia", 
         "train_tokenizer": false, 
         "overwrite": true
     },
