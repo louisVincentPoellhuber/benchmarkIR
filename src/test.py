@@ -1,5 +1,5 @@
-from models import *
-from adaptive_span import AdaptiveMask
+from lm.model_custom_roberta import *
+from lm.adaptive_span import AdaptiveMask
 from torch.autograd import gradcheck
 
 input_tensor = torch.rand(16, 12, 512, 512, dtype=torch.float64, requires_grad=True)

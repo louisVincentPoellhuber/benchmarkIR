@@ -1,0 +1,45 @@
+{
+    "settings": {
+        "datapath":"/part/01/Tmp/lvpoellhuber/datasets/hotpotqa", 
+        "q_model": "/part/01/Tmp/lvpoellhuber/models/custom_roberta/adaptive_mlm/roberta_model",
+        "ctx_model": "/part/01/Tmp/lvpoellhuber/models/custom_roberta/adaptive_mlm/roberta_model",
+        "save_path": "/part/01/Tmp/lvpoellhuber/models/custom_roberta/dpr_adaptive_hotpotqa",
+        "tokenizer": "/part/01/Tmp/lvpoellhuber/models/custom_roberta/adaptive_mlm/roberta_model", 
+        "checkpoint": null, 
+        "accelerate": true
+    },
+    "preprocess_args": {
+        "preprocess": false,
+        "task": "hotpotqa", 
+        "train_tokenizer": false, 
+        "overwrite": true
+    },
+    "train_args": {
+        "dataset":"/part/01/Tmp/lvpoellhuber/datasets/hotpotqa/train.pt", 
+        "epochs": 2,
+        "batch_size": 16, 
+        "lr": 1e-5,
+        "use_checkpoint": false, 
+        "logging": false,
+        "train": true, 
+        "eval": false
+    },
+    "config": {
+        "max_position_embeddings": 514,
+        "hidden_size": 768,
+        "num_attention_heads": 12,
+        "num_hidden_layers": 6,
+        "type_vocab_size": 1,
+        "attn_mechanism": "adaptive",
+        "num_labels":4,
+        "inner_hidden_size": 1024,
+        "dropout": 0,
+        "attn_span": 1024,
+        "adapt_span_enabled": true,
+        "adapt_span_loss": 2e-06,
+        "adapt_span_ramp": 32,
+        "adapt_span_init": 0,
+        "adapt_span_cache": true,
+        "_attn_implementation_internal": "eager"
+    }
+}
