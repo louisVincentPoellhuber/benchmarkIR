@@ -15,8 +15,7 @@ import json
 import torch
 
 #### Just some code to print debug information to stdout
-logging.basicConfig(filename="src/retrieval/evaluate_dpr.log", 
-                    format='%(asctime)s - %(message)s',
+logging.basicConfig(format='%(asctime)s - %(message)s',
                     datefmt='%Y-%m-%d %H:%M:%S', 
                     level=logging.INFO, 
                     force=True)
@@ -35,7 +34,7 @@ AutoTokenizer.register(CustomRobertaConfig, RobertaTokenizer)
 
 def parse_arguments():
     argparser = argparse.ArgumentParser("BenchmarkIR Script")
-    argparser.add_argument('--config', default="default") # default, adaptive, sparse
+    argparser.add_argument('--config', default="defaults") # default, adaptive, sparse
     
     args = argparser.parse_args()
 
@@ -44,6 +43,7 @@ def parse_arguments():
 
 if __name__ == "__main__":    
     args = parse_arguments()
+    print(f"Executing {args.config} retrieval.")
     config_path = os.path.join("/u/poellhul/Documents/Masters/benchmarkIR/src/retrieval/configs", args.config+"_retrieval.json")
     with open(config_path) as fp: arg_dict = json.load(fp)
 
@@ -59,7 +59,7 @@ if __name__ == "__main__":
     
     dpr_model = CustomDPR.from_pretrained(model_path=dpr_path, device=device)
     #model = DRES(dpr_model, batch_size=16)
-    faiss_search = FlatIPFaissSearch(dpr_model, batch_size=eval_args)
+    faiss_search = FlatIPFaissSearch(dpr_model, batch_size=batch_size)
 
     #### Download NFCorpus dataset and unzip the dataset
     url = "https://public.ukp.informatik.tu-darmstadt.de/thakur/BEIR/datasets/{}.zip".format(task)
@@ -71,15 +71,18 @@ if __name__ == "__main__":
 
     #corpus = dict(list(corpus.items())[0:100])
     if faiss_search.faiss_index == None:
+        print("Indexing.")
         faiss_search.index(corpus=corpus)
+        print("Saving.")
         faiss_search.save(dpr_path, prefix="default")
 
 
     retriever = EvaluateRetrieval(faiss_search, score_function="dot")
 
-    print("Retrieving...")
+    print("Retrieving.")
     results = retriever.retrieve(corpus, queries)
 
+    print("Evaluating.")
     ndcg, _map, recall, precision = retriever.evaluate(qrels, results, retriever.k_values)
     
     metrics_path = os.path.join(dpr_path, "metrics.txt")
