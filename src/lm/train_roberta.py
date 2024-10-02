@@ -1,7 +1,7 @@
 from transformers import RobertaConfig, get_scheduler,PretrainedConfig
 from torch.optim import AdamW
 from accelerate import Accelerator, DistributedDataParallelKwargs
-from configuration_custom import CustomRobertaConfig
+from roberta_config import CustomRobertaConfig
 
 import argparse
 import wandb
@@ -24,7 +24,7 @@ def parse_arguments():
 if __name__ == "__main__":
     # Parse arguments
     args = parse_arguments()
-    config_path = os.path.join("/u/poellhul/Documents/Masters/benchmarkIR/src/configs", args.config+"_mlm.json")
+    config_path = os.path.join("/u/poellhul/Documents/Masters/benchmarkIR/src/lm/configs", args.config+"_mlm.json")
     with open(config_path) as fp: arg_dict = json.load(fp)
 
     config = arg_dict["config"]

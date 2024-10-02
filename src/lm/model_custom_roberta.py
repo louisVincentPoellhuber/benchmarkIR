@@ -44,7 +44,7 @@ from transformers.utils import (
     replace_return_docstrings,
 )
 from transformers import RobertaConfig
-from configuration_custom import CustomRobertaConfig
+from roberta_config import CustomRobertaConfig
 
 from adaptive_span import *
 from entmax import entmax_bisect

@@ -1,10 +1,12 @@
 from preprocessing import get_dataloader, get_tokenizer
 from losses import contrastive_loss
 from model_custom_dpr import CustomDPR, CustomRobertaConfig, RobertaForSequenceClassification, CustomRobertaModel
+from dpr_config import CustomDPRConfig
 
 import torch
 from torch.optim import AdamW
 from transformers import get_scheduler
+from transformers.models.dpr import DPRQuestionEncoder
 
 import os
 import json
@@ -50,7 +52,7 @@ def parse_arguments():
 
 if __name__ == "__main__":    
     args = parse_arguments()
-    config_path = os.path.join("/u/poellhul/Documents/Masters/benchmarkIR/src/configs", args.config+"_retrieval.json")
+    config_path = os.path.join("/u/poellhul/Documents/Masters/benchmarkIR/src/retrieval/configs", args.config+"_paired.json")
     with open(config_path) as fp: arg_dict = json.load(fp)
 
     config = arg_dict["config"]
@@ -67,18 +69,18 @@ if __name__ == "__main__":
     model_path = settings["save_path"]
     tokenizer_path = settings["tokenizer"]
     chkpt_path = settings["checkpoint"] if settings["checkpoint"] != None else os.path.join(model_path, "checkpoints")
+    task = preprocess_args["task"]
 
     device = "cuda:0" if torch.cuda.is_available() else "cpu" 
     #device="cpu"  
 
-    task = preprocess_args["task"]
 
     dataloader = get_dataloader(batch_size=16, dataset_path=dataset_path)
     tokenizer = get_tokenizer(tokenizer_path)
     
     # Read the config
     print("Initializing training. ")
-    config = CustomRobertaConfig.from_dict(config)
+    config = CustomDPRConfig.from_dict(config)
     config.vocab_size = tokenizer.vocab_size+4
     print(config)
 
@@ -135,4 +137,4 @@ if __name__ == "__main__":
 
     print("Training done. Saving model. ")
    
-    model.save(model_path) 
+    model.save_pretrained(model_path) 

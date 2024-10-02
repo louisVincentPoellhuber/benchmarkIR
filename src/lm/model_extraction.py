@@ -1,4 +1,4 @@
-from configuration_custom import CustomRobertaConfig
+from roberta_config import CustomRobertaConfig
 from preprocessing import get_tokenizer
 from model_custom_roberta import RobertaForMaskedLM, RobertaForSequenceClassification, CustomRobertaModel
 import os

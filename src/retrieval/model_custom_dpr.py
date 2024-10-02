@@ -4,6 +4,8 @@ import torch
 from torch import Tensor, nn
 
 import os
+import json
+from tqdm import trange
 
 from dataclasses import dataclass
 from typing import Optional, Tuple, Union
@@ -20,16 +22,16 @@ from transformers.utils import (
 )
 from transformers import BertModel
 from transformers import DPRConfig
+from transformers import AutoConfig, AutoModel, AutoTokenizer, RobertaTokenizer
+
 import sys
 sys.path.append('/u/poellhul/Documents/Masters/benchmarkIR/src/lm')
-from transformers import AutoConfig, AutoModel, AutoTokenizer, RobertaTokenizer
 from model_custom_roberta import CustomRobertaModel, CustomRobertaConfig, RobertaForSequenceClassification
-
+from dpr_config import CustomDPRConfig
 
 AutoConfig.register("custom-roberta", CustomRobertaConfig)
 AutoModel.register(CustomRobertaConfig, CustomRobertaModel)
 AutoTokenizer.register(CustomRobertaConfig, RobertaTokenizer)
-
 
 _CONFIG_FOR_DOC = "DPRConfig"
 _CHECKPOINT_FOR_DOC = "facebook/dpr-ctx_encoder-single-nq-base"
@@ -154,7 +156,10 @@ class DPREncoder(DPRPreTrainedModel):
 
     def __init__(self, config: DPRConfig):
         super().__init__(config)
-        self.roberta_model = CustomRobertaModel.from_pretrained(config.name_or_path, config=config)
+        if config.pretrained:
+            self.roberta_model = CustomRobertaModel(config)
+        else:
+            self.roberta_model = CustomRobertaModel.from_pretrained(config.name_or_path, config=config)
         if self.roberta_model.config.hidden_size <= 0:
             raise ValueError("Encoder hidden_size can't be zero")
         self.max_position_embeddings = config.max_position_embeddings
@@ -664,38 +669,52 @@ class CustomDPR:
         self.q_model = DPRQuestionEncoder.from_pretrained(model_path[0], config=config)
         self.q_tokenizer = AutoTokenizer.from_pretrained(model_path[0])
         self.q_model.to(self.device)
-        self.q_model.train()
+        if self.config.train:
+            print("training mode")
+            self.q_model.train()
+        else:
+            print("eval mode")
+            self.q_model.eval()
         
         # Context tokenizer and model
         self.ctx_model = DPRContextEncoder.from_pretrained(model_path[1], config=config)
         self.ctx_tokenizer = AutoTokenizer.from_pretrained(model_path[1])
         self.ctx_model.to(self.device)
-        self.ctx_model.train()
+        if self.config.train:
+            self.ctx_model.train()
+        else:
+            self.ctx_model.eval()
     
     def encode_queries(self, queries: List[str], batch_size: int = 16, **kwargs) -> torch.Tensor:
         query_embeddings = []
-        #with torch.no_grad():
-        for start_idx in range(0, len(queries), batch_size):
-            encoded = self.q_tokenizer(queries[start_idx:start_idx+batch_size], truncation=True, padding=True, return_tensors='pt', max_length=self.config.max_position_embeddings-2).to(self.device)
-            model_out = self.q_model(encoded['input_ids'], attention_mask=encoded['attention_mask'])
-            query_embeddings += model_out.pooler_output
+        with torch.no_grad():
+        #print(batch_size)
+            for start_idx in range(0, len(queries), batch_size):
+                encoded = self.q_tokenizer(queries[start_idx:start_idx+batch_size], truncation=True, padding=True, return_tensors='pt', max_length=self.config.max_position_embeddings-2).to(self.device)
+                model_out = self.q_model(encoded['input_ids'], attention_mask=encoded['attention_mask'])
+                query_embeddings += model_out.pooler_output
 
         return torch.stack(query_embeddings)
         
     def encode_corpus(self, corpus: List[Dict[str, str]], batch_size: int = 8, **kwargs) -> torch.Tensor:
         
         corpus_embeddings = []
-        #with torch.no_grad():
-        for start_idx in range(0, len(corpus), batch_size):
-            titles = [row['title'] for row in corpus[start_idx:start_idx+batch_size]]
-            texts = [row['text']  for row in corpus[start_idx:start_idx+batch_size]]
-            encoded = self.ctx_tokenizer(titles, texts, truncation=True, padding=True, return_tensors='pt', max_length=self.config.max_position_embeddings-2).to(self.device)
-            model_out = self.ctx_model(encoded['input_ids'], attention_mask=encoded['attention_mask'])
-            corpus_embeddings += model_out.pooler_output.detach()
+        with torch.no_grad():
+        #print(batch_size)
+            for start_idx in range(0, len(corpus), batch_size):
+                titles = [row['title'] for row in corpus[start_idx:start_idx+batch_size]]
+                texts = [row['text']  for row in corpus[start_idx:start_idx+batch_size]]
+                encoded = self.ctx_tokenizer(titles, texts, truncation=True, padding=True, return_tensors='pt', max_length=self.config.max_position_embeddings-2).to(self.device)
+                model_out = self.ctx_model(encoded['input_ids'], attention_mask=encoded['attention_mask'])
+                if self.config.train:
+                    corpus_embeddings += model_out.pooler_output
+                else:
+                    corpus_embeddings += model_out.pooler_output.detach()
+
         
         return torch.stack(corpus_embeddings)
     
-    def save(self, save_path):
+    def save_pretrained(self, save_path):
         q_path = os.path.join(save_path, "query_model")
         ctx_path = os.path.join(save_path, "context_model")
 
@@ -703,5 +722,22 @@ class CustomDPR:
         if not os.path.exists(q_path): os.mkdir(q_path)
 
         self.q_model.save_pretrained(q_path, from_pt = True) 
+        self.q_tokenizer.save_pretrained(q_path, from_pt = True) 
         self.ctx_model.save_pretrained(ctx_path, from_pt = True) 
-    
+        self.ctx_tokenizer.save_pretrained(ctx_path, from_pt = True) 
+
+        config_path = os.path.join(save_path, "config.json")
+        self.config.to_json_file(config_path)
+
+    def from_pretrained(model_path, device = "cuda:0"):
+        config_path = os.path.join(model_path, "config.json")
+        config = CustomDPRConfig.from_json_file(config_path)
+        config.pretrained = True
+        
+
+        q_path = os.path.join(model_path, "query_model")
+        ctx_path = os.path.join(model_path, "context_model")
+
+        return CustomDPR(config=config, model_path=(q_path, ctx_path), device=device)
+        
+

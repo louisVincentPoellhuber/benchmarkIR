@@ -2,21 +2,30 @@ from beir import util, LoggingHandler
 from beir.retrieval import models
 from beir.datasets.data_loader import GenericDataLoader
 from beir.retrieval.evaluation import EvaluateRetrieval
-from beir.retrieval.search.dense import DenseRetrievalExactSearch as DRES
+from beir.retrieval.search.dense import FlatIPFaissSearch
+from dres import DenseRetrievalExactSearch as DRES
+from accelerate import Accelerator, DistributedDataParallelKwargs
 
 import logging
 import pathlib, os
 import random
+import argparse
+import json
+
+import torch
 
 #### Just some code to print debug information to stdout
-logging.basicConfig(format='%(asctime)s - %(message)s',
-                    datefmt='%Y-%m-%d %H:%M:%S',
-                    level=logging.INFO,
-                    handlers=[LoggingHandler()])
+logging.basicConfig(filename="src/retrieval/evaluate_dpr.log", 
+                    format='%(asctime)s - %(message)s',
+                    datefmt='%Y-%m-%d %H:%M:%S', 
+                    level=logging.INFO, 
+                    force=True)
 #### /print debug information to stdout
 
 from transformers import AutoConfig, AutoModel, AutoTokenizer, RobertaTokenizer
-from model_custom_roberta import CustomRobertaModel, CustomRobertaConfig
+
+from model_custom_dpr import CustomDPR, CustomRobertaModel, CustomRobertaConfig
+from dpr_config import CustomDPRConfig
 
 #tokenizer = RobertaTokenizerFast.from_pretrained("/part/01/Tmp/lvpoellhuber/models/custom_roberta/roberta_mlm")
 
@@ -24,76 +33,67 @@ AutoConfig.register("custom-roberta", CustomRobertaConfig)
 AutoModel.register(CustomRobertaConfig, CustomRobertaModel)
 AutoTokenizer.register(CustomRobertaConfig, RobertaTokenizer)
 
+def parse_arguments():
+    argparser = argparse.ArgumentParser("BenchmarkIR Script")
+    argparser.add_argument('--config', default="default") # default, adaptive, sparse
+    
+    args = argparser.parse_args()
+
+    return args
 
 
-dataset = "nq"
+if __name__ == "__main__":    
+    args = parse_arguments()
+    config_path = os.path.join("/u/poellhul/Documents/Masters/benchmarkIR/src/retrieval/configs", args.config+"_retrieval.json")
+    with open(config_path) as fp: arg_dict = json.load(fp)
 
-#### Download NFCorpus dataset and unzip the dataset
-url = "https://public.ukp.informatik.tu-darmstadt.de/thakur/BEIR/datasets/{}.zip".format(dataset)
-out_dir = "/part/01/Tmp/lvpoellhuber/datasets"
-data_path = util.download_and_unzip(url, out_dir)
+    device = "cuda:0" if torch.cuda.is_available() else "cpu" 
+    device = "cpu"
 
-#### Provide the data path where nfcorpus has been downloaded and unzipped to the data loader
-# data folder would contain these files: 
-# (1) nfcorpus/corpus.jsonl  (format: jsonlines)
-# (2) nfcorpus/queries.jsonl (format: jsonlines)
-# (3) nfcorpus/qrels/test.tsv (format: tsv ("\t"))
+    eval_args = arg_dict["eval_args"]
 
-corpus, queries, qrels = GenericDataLoader(data_folder=data_path).load(split="test")
+    # Main arguments
+    dpr_path = eval_args["model"]
+    task = eval_args["task"]
+    batch_size = eval_args["batch_size"]
+    
+    dpr_model = CustomDPR.from_pretrained(model_path=dpr_path, device=device)
+    #model = DRES(dpr_model, batch_size=16)
+    faiss_search = FlatIPFaissSearch(dpr_model, batch_size=eval_args)
 
-#### Dense Retrieval using Dense Passage Retriever (DPR) ####
-# DPR implements a two-tower strategy i.e. encoding the query and document seperately.
-# The DPR model was fine-tuned using dot-product (dot) function.
+    #### Download NFCorpus dataset and unzip the dataset
+    url = "https://public.ukp.informatik.tu-darmstadt.de/thakur/BEIR/datasets/{}.zip".format(task)
+    out_dir = "/part/01/Tmp/lvpoellhuber/datasets"
+    data_path = util.download_and_unzip(url, out_dir)
 
-#########################################################
-#### 1. Loading DPR model using SentenceTransformers ####
-#########################################################
-# You need to provide a ' [SEP] ' to seperate titles and passages in documents
-# Ref: (https://www.sbert.net/docs/pretrained-models/dpr.html)
+    corpus, queries, qrels = GenericDataLoader(data_folder=data_path).load(split="test")
+    #print(len(corpus))
 
-model = DRES(models.SentenceBERT((
-    "/part/01/Tmp/lvpoellhuber/models/custom_roberta/roberta_mlm",
-    "/part/01/Tmp/lvpoellhuber/models/custom_roberta/roberta_mlm",
-    " </s> "), batch_size=16), batch_size=16)
-
-
-################################################################
-#### 2. Loading Original HuggingFace DPR models by Facebook ####
-################################################################
-# If you do not have your saved model on Sentence Transformers, 
-# You can load HF-based DPR models in BEIR.
-# No need to provide seperator token, the model handles automatically!
-
-# model = DRES(models.DPR((
-#     "facebook/dpr-question_encoder-multiset-base",
-#     "facebook/dpr-ctx_encoder-multiset-base"), batch_size=128))
-
-# You can also load similar trained DPR models available on Hugging Face.
-# For eg. GermanDPR (https://deepset.ai/germanquad)
-
-# model = DRES(models.DPR((
-#     "deepset/gbert-base-germandpr-question_encoder",
-#     "deepset/gbert-base-germandpr-ctx_encoder"), batch_size=128))
+    #corpus = dict(list(corpus.items())[0:100])
+    if faiss_search.faiss_index == None:
+        faiss_search.index(corpus=corpus)
+        faiss_search.save(dpr_path, prefix="default")
 
 
-retriever = EvaluateRetrieval(model, score_function="dot")
+    retriever = EvaluateRetrieval(faiss_search, score_function="dot")
 
-#### Retrieve dense results (format of results is identical to qrels)
-results = retriever.retrieve(corpus, queries)
+    print("Retrieving...")
+    results = retriever.retrieve(corpus, queries)
 
-#### Evaluate your retrieval using NDCG@k, MAP@K ...
+    ndcg, _map, recall, precision = retriever.evaluate(qrels, results, retriever.k_values)
+    
+    metrics_path = os.path.join(dpr_path, "metrics.txt")
+    with open(metrics_path, "w") as metrics_file:
+        metrics_file.write("Retriever evaluation for k in: {}".format(retriever.k_values))
+        metrics_file.write(f"\nNDCG: {ndcg}\nRecall: {recall}\nPrecision: {precision}\n")
 
-logging.info("Retriever evaluation for k in: {}".format(retriever.k_values))
-ndcg, _map, recall, precision = retriever.evaluate(qrels, results, retriever.k_values)
+        top_k = 10
 
-#### Print top-k documents retrieved ####
-top_k = 10
+        query_id, ranking_scores = random.choice(list(results.items()))
+        scores_sorted = sorted(ranking_scores.items(), key=lambda item: item[1], reverse=True)
+        metrics_file.write("Query : %s\n" % queries[query_id])
 
-query_id, ranking_scores = random.choice(list(results.items()))
-scores_sorted = sorted(ranking_scores.items(), key=lambda item: item[1], reverse=True)
-logging.info("Query : %s\n" % queries[query_id])
-
-for rank in range(top_k):
-    doc_id = scores_sorted[rank][0]
-    # Format: Rank x: ID [Title] Body
-    logging.info("Rank %d: %s [%s] - %s\n" % (rank+1, doc_id, corpus[doc_id].get("title"), corpus[doc_id].get("text")))
+        for rank in range(top_k):
+            doc_id = scores_sorted[rank][0]
+            # Format: Rank x: ID [Title] Body
+            metrics_file.write("Rank %d: %s [%s] - %s\n" % (rank+1, doc_id, corpus[doc_id].get("title"), corpus[doc_id].get("text")))

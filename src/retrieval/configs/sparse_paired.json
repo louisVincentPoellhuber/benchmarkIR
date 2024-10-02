@@ -24,6 +24,11 @@
         "train": true, 
         "eval": false
     },
+    "eval_args": {
+        "eval": true,
+        "dataset":"/part/01/Tmp/lvpoellhuber/datasets/hotpotqa/test.pt",
+        "model": "/part/01/Tmp/lvpoellhuber/models/custom_roberta/dpr_sparse_hotpotqa"
+    },
     "config": {
         "max_position_embeddings": 514,
         "hidden_size": 768,
@@ -40,6 +45,8 @@
         "adapt_span_ramp": 32,
         "adapt_span_init": 0,
         "adapt_span_cache": true,
-        "_attn_implementation_internal": "eager"
+        "_attn_implementation_internal": "eager", 
+        "train": false,
+        "pretrained": false
     }
 }

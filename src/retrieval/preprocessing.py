@@ -12,7 +12,7 @@ from transformers import RobertaTokenizerFast
 
 DATASETS_PATH = "/part/01/Tmp/lvpoellhuber/datasets"
 
-class Dataset(torch.utils.data.Dataset):
+class PairsDataset(torch.utils.data.Dataset):
     def __init__(self, pairs):
         self.pairs = pairs
         
@@ -25,6 +25,24 @@ class Dataset(torch.utils.data.Dataset):
 
         return {"query":query, "doc":doc}
 
+    
+    def save(self, save_path):
+        torch.save(self.pairs, save_path)
+
+class RetrievalDataset(torch.utils.data.Dataset):
+    def __init__(self, corpus, queries, qrels):
+        self.corpus = corpus
+        self.queries = queries
+        self.qrels = qrels
+        
+    def __len__(self):
+        return len(self.corpus)
+    
+    def __getitem__(self, i):
+        query = self.pairs["queries"][i]
+        doc = self.pairs["documents"][i]
+
+        return {"query":query, "doc":doc}
     
     def save(self, save_path):
         torch.save(self.pairs, save_path)
@@ -50,7 +68,7 @@ def get_tokenizer(tokenizer_path):
 
 
 def get_dataloader(batch_size, dataset_path):
-    dataset = Dataset(torch.load(dataset_path))
+    dataset = PairsDataset(torch.load(dataset_path))
     dataloader = torch.utils.data.DataLoader(dataset, batch_size = batch_size, shuffle=True, collate_fn = custom_collate_fn)
 
     return dataloader
@@ -86,7 +104,7 @@ def preprocess_hotpotqa(out_dir, split="train"):
         "documents":pairs_docs
     }
 
-    dataset = Dataset(pairs)    
+    dataset = PairsDataset(pairs)    
     save_path = os.path.join(out_dir, os.path.join(dataset_name, split+".pt"))
     dataset.save(save_path)
 

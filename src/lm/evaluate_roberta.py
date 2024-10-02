@@ -7,7 +7,7 @@ import json
 
 import wandb
 from transformers import RobertaConfig, get_scheduler
-from configuration_custom import CustomRobertaConfig
+from roberta_config import CustomRobertaConfig
 from accelerate import Accelerator, DistributedDataParallelKwargs
 from torch.optim import AdamW
 from datasets import load_dataset, load_metric
@@ -181,7 +181,7 @@ def main(arg_dict):
 if __name__ == "__main__":
     args = parse_arguments()
     
-    config_path = os.path.join("/u/poellhul/Documents/Masters/benchmarkIR/src/configs", args.config+"_finetune.json")
+    config_path = os.path.join("/u/poellhul/Documents/Masters/benchmarkIR/src/lm/configs", args.config+"_finetune.json")
     with open(config_path) as fp: 
         original_arg_dict = json.load(fp)
 
