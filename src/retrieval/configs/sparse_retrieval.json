@@ -2,7 +2,7 @@
     "eval_args": {
         "task": "hotpotqa",
         "dataset":"/part/01/Tmp/lvpoellhuber/datasets/hotpotqa/test.pt",
-        "model": "/part/01/Tmp/lvpoellhuber/models/custom_roberta/dpr_adaptive_hotpotqa",
+        "model": "/part/01/Tmp/lvpoellhuber/models/custom_roberta/dpr_sparse_hotpotqa",
         "batch_size": 16
     },
     "config": {

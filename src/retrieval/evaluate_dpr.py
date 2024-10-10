@@ -5,6 +5,7 @@ from beir.retrieval.evaluation import EvaluateRetrieval
 from beir.retrieval.search.dense import FlatIPFaissSearch
 from dres import DenseRetrievalExactSearch as DRES
 from accelerate import Accelerator, DistributedDataParallelKwargs
+from beir.retrieval.models.dpr import DPR
 
 import logging
 import pathlib, os
@@ -34,7 +35,7 @@ AutoTokenizer.register(CustomRobertaConfig, RobertaTokenizer)
 
 def parse_arguments():
     argparser = argparse.ArgumentParser("BenchmarkIR Script")
-    argparser.add_argument('--config', default="defaults") # default, adaptive, sparse
+    argparser.add_argument('--config', default="default") # default, adaptive, sparse
     
     args = argparser.parse_args()
 
@@ -58,9 +59,10 @@ if __name__ == "__main__":
     batch_size = eval_args["batch_size"]
     
     dpr_model = CustomDPR.from_pretrained(model_path=dpr_path, device=device)
-    #model = DRES(dpr_model, batch_size=16)
+    #dpr_model = DPR(("facebook/dpr-question_encoder-multiset-base", "facebook/dpr-ctx_encoder-multiset-base",))
     faiss_search = FlatIPFaissSearch(dpr_model, batch_size=batch_size)
 
+    task="nq"
     #### Download NFCorpus dataset and unzip the dataset
     url = "https://public.ukp.informatik.tu-darmstadt.de/thakur/BEIR/datasets/{}.zip".format(task)
     out_dir = "/part/01/Tmp/lvpoellhuber/datasets"

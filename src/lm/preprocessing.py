@@ -5,6 +5,8 @@ import argparse
 
 from transformers import RobertaTokenizerFast
 from tokenizers import ByteLevelBPETokenizer
+from tokenizers.normalizers import BertNormalizer
+from tokenizers.pre_tokenizers import Punctuation 
 import torch
 from datasets import load_dataset
 
@@ -23,12 +25,14 @@ class Dataset(torch.utils.data.Dataset):
     def save(self, save_path):
         torch.save(self.encodings, save_path)
 
+
+
 def parse_arguments():
     argparser = argparse.ArgumentParser("masked language modeling")
-    argparser.add_argument('--task', default="glue") # wikipedia
+    argparser.add_argument('--task', default="mlm") # wikipedia, glue, mlm
     argparser.add_argument('--datapath', default="/part/01/Tmp/lvpoellhuber/datasets") 
     argparser.add_argument('--tokenizer_path', default="/part/01/Tmp/lvpoellhuber/models/custom_roberta/roberta_mlm")
-    argparser.add_argument('--train_tokenizer', default=False) # wikipedia
+    argparser.add_argument('--train_tokenizer', default=True) # wikipedia
     argparser.add_argument('--overwrite', default=False) # wikipedia
 
     args = argparser.parse_args()
@@ -50,17 +54,15 @@ def get_dataloader(batch_size, dataset_path):
     return dataloader
 
 
-def train_BPETokenizer(files, save_dir):
+def train_BPETokenizer(files, save_dir, vocab_size = 30522):
     tokenizer = ByteLevelBPETokenizer()
 
-    tokenizer.train(files=files, vocab_size=30522, min_frequency=2, 
-                    #special_tokens=[
-                    #    '<s>', '<pad>', '</s>', '<unk>', '<mask>'
-                    #])
-    )
+    print("Training tokenizer.")
+    tokenizer.train(files=files, vocab_size=vocab_size, min_frequency=2)
     
-    print("Saving tokenizer...")
+    print("Saving tokenizer.")
     tokenizer.save_model(save_dir)
+
 
 
 def mlm(tensor):
@@ -117,10 +119,11 @@ def preprocess_wikipedia(data_path, tokenizer_path, train_tokenizer=False, overw
     '''
     def download_dataset():
         # Creating sample files to simplify tokenizer training. 
+        sample_files_path = os.path.join(DATASETS_PATH, "wikipedia")
         if not os.path.exists(os.path.join(DATASETS_PATH, "wiki_en_0.txt")):
             dataset = load_dataset("wikipedia", language="en", date="20220301", cache_dir=DATASETS_PATH)
-            create_sample_files(dataset, DATASETS_PATH)
-        paths = [str(x) for x in Path(DATASETS_PATH).glob("*.txt")]
+            create_sample_files(dataset, sample_files_path)
+        paths = [str(x) for x in Path(sample_files_path).glob("*.txt")]
         return paths
     
     ''' Creates a dataset object. To do so, the function iterates through the given sample files 
@@ -174,6 +177,187 @@ def preprocess_wikipedia(data_path, tokenizer_path, train_tokenizer=False, overw
     save_path = os.path.join(data_path, "dataset.pt")
     generate_dataset(tokenizer, paths, save_path, overwrite)
 
+
+def preprocess_mlm(data_path, tokenizer_path, train_tokenizer=False, overwrite=False):
+
+    def create_sample_files(dataset, data_path, prefix):
+        text_data = []
+        file_count = 0
+
+        # Create sample files for all the text data
+        for sample in tqdm(dataset):
+            sample = sample["text"].replace('\n', ' ')
+            text_data.append(sample)
+            if len(text_data) == 100000:
+                file_path = os.path.join(data_path, f"{prefix}_en_{file_count}.txt")
+                with open(file_path, 'w') as fp:
+                    fp.write('\n'.join(text_data))
+                text_data = []
+                file_count += 1
+        # Last sample
+        with open(file_path, 'w') as fp:
+            fp.write('\n'.join(text_data))
+
+    def generate_dataset(tokenizer, paths, save_path, overwrite=False):
+        if os.path.exists(save_path) & (not overwrite):
+            print("Dataset already exists. ")
+        else:
+            print("Generating dataset object. ")
+
+            input_ids = []
+            mask = []
+            batch_input_ids = None
+
+            for path in tqdm(paths):
+                with open(path, "r", encoding="utf-8") as f:
+                    lines = f.read().split("\n")
+                    all_lines = " ".join(lines)
+                
+                tokenized_seq = tokenizer(all_lines, padding=False, return_overflowing_tokens= True, return_tensors = "pt")
+            
+                # Initialize the batch for the first time
+                if batch_input_ids == None:
+                    batch_input_ids = tokenized_seq.input_ids
+                    batch_mask = tokenized_seq.attention_mask
+
+                # If it hasn't reached 512 tokens yet, keep concatenating them
+                elif batch_input_ids.shape[1]<=512:
+                    batch_input_ids = torch.cat((batch_input_ids, tokenized_seq.input_ids), dim=1)
+                    batch_mask = torch.cat((batch_mask, tokenized_seq.attention_mask), dim=1)
+
+                # If it has, add the 512 tokens to the list, then keep the overflow as extra
+                if batch_input_ids.shape[1]>512:
+                    while batch_input_ids.shape[1]>512:
+                        input_ids.append(batch_input_ids[:, :512])
+                        mask.append(batch_mask[:, :512])
+
+                        batch_input_ids = batch_input_ids[:, 512:]
+                        batch_mask = batch_mask[:,512:]
+                
+                if len(input_ids) % 100000:
+                    tensor_input_ids = torch.cat(input_ids) # concatenate all the tensors
+                    tensor_mask = torch.cat(mask) 
+
+                    encodings = {
+                        "input_ids": tensor_input_ids, # tokens with mask 
+                        "attention_mask": tensor_mask,
+                    }
+
+                    mlm_dataset = Dataset(encodings)
+
+                    save_path = os.path.join(dataset_path, "mlm.pt")
+                    mlm_dataset.save(save_path)
+            
+            tensor_input_ids = torch.cat(input_ids) # concatenate all the tensors
+            tensor_mask = torch.cat(mask) 
+
+            encodings = {
+                "input_ids": tensor_input_ids, # tokens with mask 
+                "attention_mask": tensor_mask,
+            }
+
+            mlm_dataset = Dataset(encodings)
+
+            save_path = os.path.join(dataset_path, "mlm.pt")
+            mlm_dataset.save(save_path)
+            
+    # Loading / downloading datasets
+    print("Loading Wikipedia.")
+    wikipedia = load_dataset("wikipedia", language="en", date="20220301", cache_dir=DATASETS_PATH)
+    print("Loading Book Corpus.")
+    book_corpus = load_dataset("bookcorpus/bookcorpus", cache_dir=DATASETS_PATH)
+    print("Loading OpenWebText.")
+    openwebtext = load_dataset("Skylion007/openwebtext", cache_dir=DATASETS_PATH)
+    print("Loading CC News.")
+    cc_news = load_dataset("nthngdy/ccnews_split", "plain_text", cache_dir=DATASETS_PATH)
+
+    # List them all out
+    datasets = [wikipedia["train"], book_corpus["train"], openwebtext["train"], cc_news["train"], cc_news["validation"], cc_news["test"]]
+    prefixes = ["wiki", "bc", "owt", "ccn", "ccn", "ccn"]
+
+    # Create sample files for all datasets
+    dataset_path = os.path.join(data_path, "mlm")
+    sample_files_path = os.path.join(dataset_path, "sample_files")
+    if len(os.listdir(sample_files_path))==0:
+        for i, dataset in enumerate(datasets):
+            print(f"Creating sample files for {prefixes[i]}.")
+            create_sample_files(dataset, sample_files_path, prefixes[i])
+
+    paths = [str(x) for x in Path(sample_files_path).glob("*.txt")]
+
+    # Train / load the tokenizer
+    if train_tokenizer:
+        # Convert BPETokenizer to RobertaTokenizerFast
+        # bpe_path = os.path.join(tokenizer_path, "bpe_tokenizer")
+        # tokenizer = train_BPETokenizer(paths, bpe_path, 50256)
+        # tokenizer = get_tokenizer(bpe_path)
+        # tokenizer.save_pretrained(tokenizer_path)
+
+        # Load FacbookeAI's RoBERTa tokenizer and save it locally
+        tokenizer = RobertaTokenizerFast.from_pretrained("FacebookAI/roberta-base")
+        tokenizer.save_pretrained(tokenizer_path)
+    else:
+        tokenizer = get_tokenizer(tokenizer_path)
+    
+    # Tokenize the documents
+    save_path = os.path.join(dataset_path, "mlm.pt")
+    generate_dataset(tokenizer, paths, save_path, True)
+
+
+
+    # input_ids = []
+    # mask = []
+    # for i, dataset in enumerate(datasets):
+    #     print(f"Tokenizing {prefixes[i]}.")
+    #     batch_input_ids = None
+    #     for row in tqdm(dataset):# Tokenize
+    #         tokenized_seq = tokenizer(row["text"], padding=False, return_overflowing_tokens= True, return_tensors = "pt")
+            
+    #         # Initialize the batch for the first time
+    #         if batch_input_ids == None:
+    #             batch_input_ids = tokenized_seq.input_ids
+    #             batch_mask = tokenized_seq.attention_mask
+
+    #         # If it hasn't reached 512 tokens yet, keep concatenating them
+    #         elif batch_input_ids.shape[1]<=512:
+    #             batch_input_ids = torch.cat((batch_input_ids, tokenized_seq.input_ids), dim=1)
+    #             batch_mask = torch.cat((batch_mask, tokenized_seq.attention_mask), dim=1)
+
+    #         # If it has, add the 512 tokens to the list, then keep the overflow as extra
+    #         if batch_input_ids.shape[1]>512:
+    #             while batch_input_ids.shape[1]>512:
+    #                 input_ids.append(batch_input_ids[:, :512])
+    #                 mask.append(batch_mask[:, :512])
+
+    #                 batch_input_ids = batch_input_ids[:, 512:]
+    #                 batch_mask = batch_mask[:,512:]
+            
+    #         if len(input_ids) % 100000:
+    #             tensor_input_ids = torch.cat(input_ids) # concatenate all the tensors
+    #             tensor_mask = torch.cat(mask) 
+
+    #             encodings = {
+    #                 "input_ids": tensor_input_ids, # tokens with mask 
+    #                 "attention_mask": tensor_mask,
+    #             }
+
+    #             mlm_dataset = Dataset(encodings)
+
+    #             save_path = os.path.join(dataset_path, "mlm.pt")
+    #             mlm_dataset.save(save_path)
+            
+    # tensor_input_ids = torch.cat(input_ids) # concatenate all the tensors
+    # tensor_mask = torch.cat(mask) 
+
+    # encodings = {
+    #     "input_ids": tensor_input_ids, # tokens with mask 
+    #     "attention_mask": tensor_mask,
+    # }
+
+    # mlm_dataset = Dataset(encodings)
+
+    # save_path = os.path.join(dataset_path, "mlm.pt")
+    # mlm_dataset.save(save_path)
 
 ''' This function encompasses everything needed to preprocess the MNLI dataset, from GLUE. 
 Input
@@ -315,6 +499,8 @@ Input
 def preprocess_main(task, datapath, tokenizer_path, train_tokenizer, overwrite=False):
     if task=="wikipedia":
         preprocess_wikipedia(datapath, tokenizer_path, train_tokenizer, overwrite)
+    elif task=="mlm":
+        preprocess_mlm(datapath, tokenizer_path, train_tokenizer, overwrite)
     elif task=="other_task":
         #raise ValueError("Invalid dataset. Please choose one of the following: ['wikipedia'].")
         pass

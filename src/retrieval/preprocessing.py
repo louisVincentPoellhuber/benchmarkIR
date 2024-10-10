@@ -49,7 +49,7 @@ class RetrievalDataset(torch.utils.data.Dataset):
 
 def parse_arguments():
     argparser = argparse.ArgumentParser("masked language modeling")
-    argparser.add_argument('--task', default="hotpotqa") # wikipedia
+    argparser.add_argument('--task', default="dprqa") # wikipedia
     argparser.add_argument('--datapath', default="/part/01/Tmp/lvpoellhuber/datasets") 
     argparser.add_argument('--overwrite', default=False) # wikipedia
 
@@ -108,6 +108,40 @@ def preprocess_hotpotqa(out_dir, split="train"):
     save_path = os.path.join(out_dir, os.path.join(dataset_name, split+".pt"))
     dataset.save(save_path)
 
+def preprocess_dprqa(out_dir):
+    datasets = ["quora", "hotpotqa", "nq-train", "msmarco"]
+
+    pairs_queries = []
+    pairs_docs = []
+    for dataset_name in tqdm(datasets):
+        #### Download NFCorpus dataset and unzip the dataset
+        url = f"https://public.ukp.informatik.tu-darmstadt.de/thakur/BEIR/datasets/{dataset_name}.zip"
+        data_path = util.download_and_unzip(url, out_dir)
+
+        split = "dev" if dataset_name=="quora" else "train"
+        corpus, queries, qrels = GenericDataLoader(data_folder=data_path).load(split=split)
+
+        for qid in qrels.keys():
+            query = queries[qid]
+            documents = qrels[qid].keys()
+
+            for docid in documents:
+                doc = corpus[docid]
+
+                pairs_queries.append(query)
+                pairs_docs.append(doc)
+    
+    
+    pairs = {
+        "queries":pairs_queries,
+        "documents":pairs_docs
+    }
+
+    dataset = PairsDataset(pairs)    
+    save_path = os.path.join(out_dir, os.path.join("dprqa", "train.pt"))
+    dataset.save(save_path)
+
+
 ''' Main preprocessing function. Directs which preprocessing pipeline to use. 
 Input
     dataset: Which dataset to preprocess. Choice between 'wikipedia', 'mnli'
@@ -117,6 +151,8 @@ Input
 def preprocess_main(task, datapath, overwrite=False):
     if task=="hotpotqa":
         preprocess_hotpotqa(datapath)
+    if task=="dprqa":
+        preprocess_dprqa(datapath)
     elif task=="other_task":
         #raise ValueError("Invalid dataset. Please choose one of the following: ['wikipedia'].")
         pass

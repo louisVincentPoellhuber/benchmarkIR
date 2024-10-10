@@ -59,7 +59,7 @@ if __name__ == "__main__":
     # Read the config
     print("Initializing training. ")
     config = CustomRobertaConfig.from_dict(config)
-    config.vocab_size = tokenizer.vocab_size+4
+    config.vocab_size = tokenizer.vocab_size+4 
     print(config)
 
     model = RobertaForMaskedLM(config)
