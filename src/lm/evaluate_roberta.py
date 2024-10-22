@@ -15,7 +15,7 @@ import copy
 
 def parse_arguments():
     argparser = argparse.ArgumentParser("masked language modeling")
-    argparser.add_argument('--config', default="default") # default, adaptive, sparse
+    argparser.add_argument('--config', default="glue") # default, adaptive, sparse
     args = argparser.parse_args()
 
     return args
@@ -36,7 +36,7 @@ def main(arg_dict):
 
     task = preprocess_args["task"]
 
-    accelerator = Accelerator(log_with="wandb", kwargs_handlers=[DistributedDataParallelKwargs(find_unused_parameters=True)])
+    accelerator = Accelerator(log_with="comet_ml", kwargs_handlers=[DistributedDataParallelKwargs(find_unused_parameters=True)])
     device = accelerator.device 
     
     task_num_labels = {
@@ -76,7 +76,7 @@ def main(arg_dict):
         # Number of training epochs and warmup steps
         epochs = train_args["epochs"]
         num_training_steps = epochs * len(train_dataloader)
-        num_warmup_steps = int(0.1 * num_training_steps)
+        num_warmup_steps = int(0.06 * num_training_steps)
 
         # Initialize the scheduler
         scheduler = get_scheduler(
@@ -95,12 +95,8 @@ def main(arg_dict):
         # WandB stuff
         
         if train_args["logging"]:
-            wandb.login(key=os.getenv("WANDB_KEY"))
-            run = wandb.init(
-                project = "benchmarkIR",
-                config = vars(settings + config)
-            )
-            accelerator.init_trackers("benchmarkIR")
+            accelerator.init_trackers(project_name="benchmarkIR", config = config.to_dict())
+
 
         # Training loop
         for epoch in range(epochs):
@@ -119,19 +115,21 @@ def main(arg_dict):
                 optim.step()
                 scheduler.step()
 
-                #if i%1000==0:
-                #wandb.log({"loss": loss})
-                accelerator.log({"loss": loss})
-                if i%10000==0:
-                    accelerator.save_state(chkpt_path)
 
                 loop.set_description(f'Epoch: {epoch}')
                 loop.set_postfix(loss = loss.item())
+                
+            unwrapped_model = accelerator.unwrap_model(model)
+            unwrapped_model.save_pretrained(
+                model_path,
+                is_main_process=accelerator.is_main_process,
+                save_function=accelerator.save,
+            )
 
-        accelerator.save_state(chkpt_path)
         accelerator.end_training()
         
         print("Training done. Saving model. ")
+        accelerator.end_training()
         unwrapped_model = accelerator.unwrap_model(model)
         unwrapped_model.save_pretrained(
             model_path,
@@ -186,7 +184,7 @@ if __name__ == "__main__":
         original_arg_dict = json.load(fp)
 
     if original_arg_dict["preprocess_args"]["task"]=="glue":
-        tasks = ["cola", "mnli", "mrpc", "qnli", "qqp", "rte", "sst2", "wnli", "stsb"]
+        tasks = ["cola", "mnli", "mrpc", "qnli", "qqp", "rte", "sst2", "wnli"]
         
         #for i in range(2):
            # if i==0:
@@ -207,12 +205,12 @@ if __name__ == "__main__":
             arg_dict["preprocess_args"]["task"] = task
             
             arg_dict["settings"]["datapath"] = os.path.join(arg_dict["settings"]["datapath"], task)
-            arg_dict["settings"]["model"] = os.path.join(arg_dict["settings"]["model"], "sparse_"+task)
+            arg_dict["settings"]["model"] = os.path.join(arg_dict["settings"]["model"], "roberta_"+task)
             
             arg_dict["train_args"]["dataset"] = os.path.join(arg_dict["settings"]["datapath"], task+"_train.pt")
             
             arg_dict["eval_args"]["dataset"] = os.path.join(arg_dict["settings"]["datapath"], task+"_test.pt")
-            arg_dict["eval_args"]["model"] = os.path.join(arg_dict["eval_args"]["model"], "sparse_"+task)
+            arg_dict["eval_args"]["model"] = os.path.join(arg_dict["eval_args"]["model"], "roberta_"+task)
 
             main(arg_dict)
         

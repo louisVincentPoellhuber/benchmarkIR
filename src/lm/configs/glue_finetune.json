@@ -2,8 +2,8 @@
     "settings": {
         "datapath":"/part/01/Tmp/lvpoellhuber/datasets", 
         "model": "/part/01/Tmp/lvpoellhuber/models/custom_roberta",
-        "tokenizer": "/part/01/Tmp/lvpoellhuber/models/custom_roberta/roberta_mlm",
-        "checkpoint": "/part/01/Tmp/lvpoellhuber/models/custom_roberta/roberta_mlm", 
+        "tokenizer": "/part/01/Tmp/lvpoellhuber/models/backups/roberta_mlm_241019",
+        "checkpoint": "/part/01/Tmp/lvpoellhuber/models/backups/roberta_mlm_241019", 
         "accelerate": true
     },
     "preprocess_args": {
@@ -14,8 +14,8 @@
     },
     "train_args": {
         "dataset":"/part/01/Tmp/lvpoellhuber/datasets", 
-        "epochs": 2,
-        "batch_size": 16, 
+        "epochs": 3,
+        "batch_size": 32, 
         "lr": 1e-5,
         "use_checkpoint": true, 
         "logging": false,

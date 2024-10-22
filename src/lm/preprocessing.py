@@ -3,12 +3,13 @@ from tqdm import tqdm
 import os
 import argparse
 
-from transformers import RobertaTokenizerFast
+from transformers import RobertaTokenizerFast, DataCollatorForLanguageModeling
 from tokenizers import ByteLevelBPETokenizer
 from tokenizers.normalizers import BertNormalizer
 from tokenizers.pre_tokenizers import Punctuation 
 import torch
-from datasets import load_dataset
+from datasets import load_dataset, concatenate_datasets, load_from_disk
+
 
 DATASETS_PATH = "/part/01/Tmp/lvpoellhuber/datasets"
 
@@ -29,7 +30,7 @@ class Dataset(torch.utils.data.Dataset):
 
 def parse_arguments():
     argparser = argparse.ArgumentParser("masked language modeling")
-    argparser.add_argument('--task', default="mlm") # wikipedia, glue, mlm
+    argparser.add_argument('--task', default="glue") # wikipedia, glue, mlm
     argparser.add_argument('--datapath', default="/part/01/Tmp/lvpoellhuber/datasets") 
     argparser.add_argument('--tokenizer_path', default="/part/01/Tmp/lvpoellhuber/models/custom_roberta/roberta_mlm")
     argparser.add_argument('--train_tokenizer', default=True) # wikipedia
@@ -50,6 +51,14 @@ def get_tokenizer(tokenizer_path):
 def get_dataloader(batch_size, dataset_path):
     dataset = Dataset(torch.load(dataset_path))
     dataloader = torch.utils.data.DataLoader(dataset, batch_size = batch_size, shuffle=True)
+
+    return dataloader
+
+def get_mlm_dataloader(batch_size, dataset_path, tokenizer):
+    dataset = load_from_disk(dataset_path)
+    data_collator = DataCollatorForLanguageModeling(tokenizer, mlm=True)
+
+    dataloader = torch.utils.data.DataLoader(dataset, batch_size = batch_size, shuffle=True, collate_fn = data_collator.torch_call)
 
     return dataloader
 
@@ -260,7 +269,22 @@ def preprocess_mlm(data_path, tokenizer_path, train_tokenizer=False, overwrite=F
 
             save_path = os.path.join(dataset_path, "mlm.pt")
             mlm_dataset.save(save_path)
-            
+
+    
+    # Define the concatenation function
+    def concatenate_examples(batch, tokenizer, max_length=512):
+        tokenized_inputs = tokenizer(batch["text"], truncation=False, padding=False, add_special_tokens=False)
+        input_ids = sum(tokenized_inputs["input_ids"], [])
+        chunked_input_ids = [
+            [tokenizer.cls_token_id] + input_ids[i:i + max_length - 2] + [tokenizer.sep_token_id]
+            for i in range(0, len(input_ids), max_length - 2)
+        ]
+        chunked_input_ids = [
+            chunk + [tokenizer.pad_token_id] * (max_length - len(chunk)) if len(chunk) < max_length else chunk
+            for chunk in chunked_input_ids
+        ]
+        return {"input_ids": chunked_input_ids}
+                
     # Loading / downloading datasets
     print("Loading Wikipedia.")
     wikipedia = load_dataset("wikipedia", language="en", date="20220301", cache_dir=DATASETS_PATH)
@@ -298,66 +322,53 @@ def preprocess_mlm(data_path, tokenizer_path, train_tokenizer=False, overwrite=F
         tokenizer.save_pretrained(tokenizer_path)
     else:
         tokenizer = get_tokenizer(tokenizer_path)
-    
-    # Tokenize the documents
-    save_path = os.path.join(dataset_path, "mlm.pt")
-    generate_dataset(tokenizer, paths, save_path, True)
 
+    save_path = os.path.join(dataset_path, "mlm")
+    if os.path.exists(save_path) & (not overwrite):
+        print("Dataset already generated. ")
+    else:
+        print("Tokenizing CC News train.")
+        tokenized_cc_news_train = cc_news["train"].map(
+            lambda batch: concatenate_examples(batch, tokenizer),
+            batched=True,
+            remove_columns=["text"]
+        )
+        print("Tokenizing CC News test.")
+        tokenized_cc_news_test = cc_news["test"].map(
+            lambda batch: concatenate_examples(batch, tokenizer),
+            batched=True,
+            remove_columns=["text"]
+        )
+        print("Tokenizing CC News val.")
+        tokenized_cc_news_val = cc_news["validation"].map(
+            lambda batch: concatenate_examples(batch, tokenizer),
+            batched=True,
+            remove_columns=["text"]
+        )
+        print("Tokenizing wikipedia.")
+        tokenized_wikipedia = wikipedia["train"].map(
+            lambda batch: concatenate_examples(batch, tokenizer),
+            batched=True,
+            remove_columns=["text", "id", "url", "title"]
+        )
+        print("Tokenizing book corpus.")
+        tokenized_book_corpus = book_corpus["train"].map(
+            lambda batch: concatenate_examples(batch, tokenizer),
+            batched=True,
+            remove_columns=["text"]
+        )
+        print("Tokenizing openwebtext.")
+        tokenized_openwebtext = openwebtext["train"].map(
+            lambda batch: concatenate_examples(batch, tokenizer),
+            batched=True,
+            remove_columns=["text"]
+        )
 
+        print("Saving dataset.")
+        full_dataset = concatenate_datasets([tokenized_wikipedia, tokenized_book_corpus, tokenized_cc_news_train, tokenized_cc_news_test, tokenized_cc_news_val, tokenized_openwebtext])
+        full_dataset.save_to_disk(save_path)
+        
 
-    # input_ids = []
-    # mask = []
-    # for i, dataset in enumerate(datasets):
-    #     print(f"Tokenizing {prefixes[i]}.")
-    #     batch_input_ids = None
-    #     for row in tqdm(dataset):# Tokenize
-    #         tokenized_seq = tokenizer(row["text"], padding=False, return_overflowing_tokens= True, return_tensors = "pt")
-            
-    #         # Initialize the batch for the first time
-    #         if batch_input_ids == None:
-    #             batch_input_ids = tokenized_seq.input_ids
-    #             batch_mask = tokenized_seq.attention_mask
-
-    #         # If it hasn't reached 512 tokens yet, keep concatenating them
-    #         elif batch_input_ids.shape[1]<=512:
-    #             batch_input_ids = torch.cat((batch_input_ids, tokenized_seq.input_ids), dim=1)
-    #             batch_mask = torch.cat((batch_mask, tokenized_seq.attention_mask), dim=1)
-
-    #         # If it has, add the 512 tokens to the list, then keep the overflow as extra
-    #         if batch_input_ids.shape[1]>512:
-    #             while batch_input_ids.shape[1]>512:
-    #                 input_ids.append(batch_input_ids[:, :512])
-    #                 mask.append(batch_mask[:, :512])
-
-    #                 batch_input_ids = batch_input_ids[:, 512:]
-    #                 batch_mask = batch_mask[:,512:]
-            
-    #         if len(input_ids) % 100000:
-    #             tensor_input_ids = torch.cat(input_ids) # concatenate all the tensors
-    #             tensor_mask = torch.cat(mask) 
-
-    #             encodings = {
-    #                 "input_ids": tensor_input_ids, # tokens with mask 
-    #                 "attention_mask": tensor_mask,
-    #             }
-
-    #             mlm_dataset = Dataset(encodings)
-
-    #             save_path = os.path.join(dataset_path, "mlm.pt")
-    #             mlm_dataset.save(save_path)
-            
-    # tensor_input_ids = torch.cat(input_ids) # concatenate all the tensors
-    # tensor_mask = torch.cat(mask) 
-
-    # encodings = {
-    #     "input_ids": tensor_input_ids, # tokens with mask 
-    #     "attention_mask": tensor_mask,
-    # }
-
-    # mlm_dataset = Dataset(encodings)
-
-    # save_path = os.path.join(dataset_path, "mlm.pt")
-    # mlm_dataset.save(save_path)
 
 ''' This function encompasses everything needed to preprocess the MNLI dataset, from GLUE. 
 Input
@@ -505,8 +516,8 @@ def preprocess_main(task, datapath, tokenizer_path, train_tokenizer, overwrite=F
         #raise ValueError("Invalid dataset. Please choose one of the following: ['wikipedia'].")
         pass
     elif task=="glue": # Preprocess all tasks
-        #tasks = ["cola", "mnli", "mrpc", "qnli", "qqp", "rte", "sst2", "stsb", "wnli"]
-        tasks = ["mnli"]
+        tasks = ["cola", "mnli", "mrpc", "qnli", "qqp", "rte", "sst2", "stsb", "wnli"]
+        #tasks = ["mnli"]
         for task in tasks:
             print(f"============ Processing {task} ============")
             task_datapath = os.path.join(datapath, task)
