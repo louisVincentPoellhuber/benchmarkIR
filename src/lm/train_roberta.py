@@ -17,6 +17,7 @@ from model_custom_roberta import *
 def parse_arguments():
     argparser = argparse.ArgumentParser("BenchmarkIR Script")
     argparser.add_argument('--config', default="default") # default, adaptive, sparse
+    argparser.add_argument('--config_dict', default={}) 
     argparser.add_argument('--archive', default=False) # default, adaptive, sparse
     
     args = argparser.parse_args()
@@ -43,15 +44,65 @@ def save_model(enable_accelerate, accelerator, model, model_path):
         roberta_path = os.path.join(model_path, "roberta_model")
         model.roberta.save_pretrained(roberta_path, from_pt=True)
 
+def log_metrics(accelerator, model, experiment, step, epoch, num_training_steps, config, loss):
+    step = step + epoch * num_training_steps
+    if experiment != None:
+        experiment.log_metrics({"loss": loss}, step=step)
+        
+        if accelerator != None:                
+            if accelerator.is_main_process:
+                if config.attn_mechanism =="sparse":
+                    original_model = accelerator.unwrap_model(model)
+                    log_dict = {"loss": loss}
+                    for layer_nb, layer in enumerate(original_model.roberta.encoder.layer):
+                        alphas = layer.attention.self.alpha.data
+                        names = [f"layer_{layer_nb}_alpha_"+str(i) for i in range(len(alphas))]
+                        alpha_dict = dict(zip(names, alphas))
+                        log_dict.update(alpha_dict)
+                    experiment.log_metrics(log_dict, step=step)
+
+                elif config.attn_mechanism == "adaptive":
+                    original_model = accelerator.unwrap_model(model)
+                    log_dict = {"loss": loss}
+                    for layer_nb, layer in enumerate(original_model.roberta.encoder.layer):
+                        spans = layer.attention.self.seq_attention.mask.current_val.data
+                        names = [f"layer_{layer_nb}_span_"+str(i) for i in range(len(spans))]
+                        span_dict = dict(zip(names, spans))
+                        log_dict.update(span_dict)
+                    experiment.log_metrics(log_dict, step=step)
+        else:
+                if config.attn_mechanism =="sparse":
+                    log_dict = {"loss": loss}
+                    for layer_nb, layer in enumerate(model.roberta.encoder.layer):
+                        alphas = layer.attention.self.alpha.data
+                        names = [f"layer_{layer_nb}_alpha_"+str(i) for i in range(len(alphas))]
+                        alpha_dict = dict(zip(names, alphas))
+                        log_dict.update(alpha_dict)
+                    experiment.log_metrics(log_dict, step=step)
+
+                elif config.attn_mechanism == "adaptive":
+                    log_dict = {"loss": loss}
+                    for layer_nb, layer in enumerate(model.roberta.encoder.layer):
+                        spans = layer.attention.self.seq_attention.mask.current_val.data
+                        names = [f"layer_{layer_nb}_span_"+str(i) for i in range(len(spans))]
+                        span_dict = dict(zip(names, spans))
+                        log_dict.update(span_dict)
+                    experiment.log_metrics(log_dict, step=step)
+
+
 
 if __name__ == "__main__":
     # Parse arguments
     args = parse_arguments()
-    if args.archive:
-        config_path = os.path.join("/u/poellhul/Documents/Masters/benchmarkIR/src/lm/configs_archive", args.config+"_mlm.json")
-    else:
-        config_path = os.path.join("/u/poellhul/Documents/Masters/benchmarkIR/src/lm/configs", args.config+"_mlm.json")
-    with open(config_path) as fp: arg_dict = json.load(fp)
+    if len(args.config_dict)>0:
+        arg_dict = args.config_dict
+    else:   
+        if args.archive:
+            config_path = os.path.join("/u/poellhul/Documents/Masters/benchmarkIR/src/lm/configs_archive", args.config+"_mlm.json")
+        else:
+            config_path = os.path.join("/u/poellhul/Documents/Masters/benchmarkIR/src/lm/configs", args.config+"_mlm.json")
+        
+        with open(config_path) as fp: arg_dict = json.load(fp)
 
     config = arg_dict["config"]
     settings = arg_dict["settings"]
@@ -73,6 +124,7 @@ if __name__ == "__main__":
     else:
         print("Accelerate disabled.")
         device = "cuda" if torch.cuda.is_available() else "cpu"
+        accelerator=None
 
 
     # Generate or load dataset + tokenizer
@@ -107,9 +159,9 @@ if __name__ == "__main__":
             if not name.endswith('attention.self.alpha'):
                 other_params.append(param)
         optim = AdamW([
-                {'params': other_params, 'lr': 1e-5},  # Default learning rate for most parameters
+                {'params': other_params, 'lr': train_args["lr"]},  # Default learning rate for most parameters
                 {'params': alpha_params, 'lr': 10.0}          # Higher learning rate for alpha
-            ])
+            ], betas=(0.9, 0.98), eps=1e-6)
     else:
         optim = AdamW(model.parameters(), lr=train_args["lr"], betas=(0.9, 0.98), eps=1e-6) # typical range is 1e-6 to 1e-4
 
@@ -136,11 +188,13 @@ if __name__ == "__main__":
     # WandB stuff
     if train_args["logging"]:
         
+        experiment = None
         if enable_accelerate: 
             accelerator.init_trackers(project_name="benchmarkIR", config = config.to_dict())
+            if accelerator.is_main_process:
+                experiment  = comet_ml.Experiment(project_name="benchmarkIR", auto_metric_step_rate=100)
         else:
-            experiment = comet_ml.Experiment(project_name="benchmarkIR", config = config.to_dict(), auto_metric_logging=False)
-
+            experiment = comet_ml.Experiment(project_name="benchmarkIR", auto_metric_step_rate=100, )
     # You can add a config here, for the experiment
    
     #if train_args["use_checkpoint"]: # TODO: Figure out how to use checkpoint
@@ -179,33 +233,8 @@ if __name__ == "__main__":
             if (i%100000==0) & (i!=0):
                 save_model(enable_accelerate, accelerator, model, model_path)
             
-            if (i%100==0):
-                if enable_accelerate:                
-                    if config.attn_mechanism =="sparse":
-                        original_model = accelerator.unwrap_model(model)
-                        log_dict = {"loss": loss}
-                        for layer_nb, layer in enumerate(original_model.roberta.encoder.layer):
-                            alphas = layer.attention.self.alpha.data
-                            names = [f"layer_{layer_nb}_alpha_"+str(i) for i in range(len(alphas))]
-                            alpha_dict = dict(zip(names, alphas))
-                            log_dict.update(alpha_dict)
-                        accelerator.log(log_dict)
-
-                    elif config.attn_mechanism == "adaptive":
-                        original_model = accelerator.unwrap_model(model)
-                        log_dict = {"loss": loss}
-                        for layer_nb, layer in enumerate(original_model.roberta.encoder.layer):
-                            spans = layer.attention.self.seq_attention.mask.current_val.data
-                            names = [f"layer_{layer_nb}_span_"+str(i) for i in range(len(spans))]
-                            span_dict = dict(zip(names, spans))
-                            log_dict.update(span_dict)
-                        accelerator.log(log_dict)
-
-                    else:
-                        accelerator.log({"loss": loss}, log_kwargs={"step":i, "epoch":epoch})
-
-                elif train_args["logging"]:
-                    experiment.log_metrics({"loss": loss}, step=i, epoch=epoch)
+            if (i%100==0) & train_args["logging"]:
+                log_metrics(accelerator, model, experiment, i, epoch, len(loop), config, loss)
 
             loop.set_description(f'Epoch: {epoch}')
             loop.set_postfix(loss = loss.item())

@@ -1,6 +1,6 @@
 {
     "settings": {
-        "datapath": "/part/01/Tmp/lvpoellhuber/datasets/wikipedia_",
+        "datapath": "/part/01/Tmp/lvpoellhuber/datasets/mlm",
         "model": "/part/01/Tmp/lvpoellhuber/models/custom_roberta/adaptive_mlm",
         "tokenizer": "/part/01/Tmp/lvpoellhuber/models/custom_roberta/roberta_mlm",
         "checkpoint": null,
@@ -8,14 +8,14 @@
     },
     "preprocess_args": {
         "preprocess": false,
-        "task": "wikipedia", 
+        "task": "mlm", 
         "train_tokenizer": false, 
         "overwrite": false
     },
     "train_args": {
-        "dataset":"/part/01/Tmp/lvpoellhuber/datasets/wikipedia/dataset.pt", 
-        "epochs": 2,
-        "batch_size": 16, 
+        "dataset":"/part/01/Tmp/lvpoellhuber/datasets/mlm/mlm", 
+        "epochs": 5,
+        "batch_size": 32, 
         "lr": 1e-5,
         "use_checkpoint": false, 
         "logging": true,

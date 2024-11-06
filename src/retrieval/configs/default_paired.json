@@ -1,33 +1,33 @@
 {
     "settings": {
-        "datapath":"/part/01/Tmp/lvpoellhuber/datasets/hotpotqa", 
-        "q_model": "/part/01/Tmp/lvpoellhuber/models/custom_roberta/roberta_mlm/roberta_model",
-        "ctx_model": "/part/01/Tmp/lvpoellhuber/models/custom_roberta/roberta_mlm/roberta_model",
-        "save_path": "/part/01/Tmp/lvpoellhuber/models/custom_roberta/dpr_hotpotqa",
-        "tokenizer": "/part/01/Tmp/lvpoellhuber/models/custom_roberta/roberta_mlm", 
+        "datapath":"/part/01/Tmp/lvpoellhuber/datasets/dprqa", 
+        "q_model": "/part/01/Tmp/lvpoellhuber/models/backups/roberta_mlm_241019/roberta_model",
+        "ctx_model": "/part/01/Tmp/lvpoellhuber/models/backups/roberta_mlm_241019/roberta_model",
+        "save_path": "/part/01/Tmp/lvpoellhuber/models/custom_roberta/dpr",
+        "tokenizer": "/part/01/Tmp/lvpoellhuber/models/backups/roberta_mlm_241019", 
         "checkpoint": null, 
         "accelerate": true
     },
     "preprocess_args": {
         "preprocess": false,
-        "task": "hotpotqa", 
+        "task": "dprqa", 
         "train_tokenizer": false, 
-        "overwrite": true
+        "overwrite": false
     },
     "train_args": {
-        "dataset":"/part/01/Tmp/lvpoellhuber/datasets/hotpotqa/train.pt", 
-        "epochs": 2,
-        "batch_size": 16, 
+        "dataset":"/part/01/Tmp/lvpoellhuber/datasets/dprqa/train.pt", 
+        "epochs": 5,
+        "batch_size": 32, 
         "lr": 1e-5,
         "use_checkpoint": false, 
-        "logging": false,
+        "logging": true,
         "train": true, 
         "eval": false
     },
     "eval_args": {
         "eval": true,
-        "dataset":"/part/01/Tmp/lvpoellhuber/datasets/hotpotqa/test.pt",
-        "model": "/part/01/Tmp/lvpoellhuber/models/custom_roberta/dpr_hotpotqa"
+        "dataset": null,
+        "model": null
     },
     "config": {
         "vocab_size": 32,
@@ -38,7 +38,7 @@
         "type_vocab_size": 1,
         "attn_mechanism": "eager",
         "_attn_implementation_internal": "eager", 
-        "train": false,
+        "train": true,
         "pretrained": false
     }
 }

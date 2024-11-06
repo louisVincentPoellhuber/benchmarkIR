@@ -1,3 +1,5 @@
+import comet_ml
+
 from preprocessing import get_dataloader, get_tokenizer
 from losses import contrastive_loss
 from model_custom_dpr import CustomDPR, CustomRobertaConfig, RobertaForSequenceClassification, CustomRobertaModel
@@ -13,8 +15,8 @@ import json
 from tqdm import tqdm
 import argparse
 
-def debug_parameters(model):
-    pretrained_roberta = CustomRobertaModel.from_pretrained("/part/01/Tmp/lvpoellhuber/models/custom_roberta/roberta_mlm/roberta_model").to(device)
+def debug_parameters(model, pretrained_path):
+    pretrained_roberta = CustomRobertaModel.from_pretrained(pretrained_path).to(device)
     #pretrained_roberta.roberta.save_pretrained("/part/01/Tmp/lvpoellhuber/models/custom_roberta/test", from_pt = True) 
     # Compare weights
     #print(pretrained_roberta.state_dict())
@@ -34,6 +36,7 @@ def debug_parameters(model):
         else:
             print(f"Layer {name} not found in RoBERTa pre-trained weights.")
 
+
 def debug_dataloader(dataloader):
     for batch in tqdm(dataloader, leave=True):
         for doc in batch["docs"]:
@@ -41,9 +44,33 @@ def debug_dataloader(dataloader):
             if text.count(" ") + 1 >= 400:
                 print("Need to truncate")
 
+                
+def log_metrics(model, experiment, step, epoch):
+    experiment.log_metrics({"loss": loss}, step=step, epoch=epoch)
+    
+    if config.attn_mechanism =="sparse":
+        log_dict = {"loss": loss}
+        for layer_nb, layer in enumerate(model.roberta.encoder.layer):
+            alphas = layer.attention.self.alpha.data
+            names = [f"layer_{layer_nb}_alpha_"+str(i) for i in range(len(alphas))]
+            alpha_dict = dict(zip(names, alphas))
+            log_dict.update(alpha_dict)
+        experiment.log_metrics(log_dict, step=step, epoch=epoch)
+
+    elif config.attn_mechanism == "adaptive":
+        log_dict = {"loss": loss}
+        for layer_nb, layer in enumerate(model.roberta.encoder.layer):
+            spans = layer.attention.self.seq_attention.mask.current_val.data
+            names = [f"layer_{layer_nb}_span_"+str(i) for i in range(len(spans))]
+            span_dict = dict(zip(names, spans))
+            log_dict.update(span_dict)
+        experiment.log_metrics(log_dict, step=step, epoch=epoch)
+
+
 def parse_arguments():
     argparser = argparse.ArgumentParser("BenchmarkIR Script")
-    argparser.add_argument('--config', default="sparse") # default, adaptive, sparse
+    argparser.add_argument('--config', default="default") # default, adaptive, sparse
+    argparser.add_argument('--config_dict', default={}) # default, adaptive, sparse
     
     args = argparser.parse_args()
 
@@ -52,8 +79,12 @@ def parse_arguments():
 
 if __name__ == "__main__":    
     args = parse_arguments()
-    config_path = os.path.join("/u/poellhul/Documents/Masters/benchmarkIR/src/retrieval/configs", args.config+"_paired.json")
-    with open(config_path) as fp: arg_dict = json.load(fp)
+    
+    if len(args.config_dict)>0:
+        arg_dict = args.config_dict
+    else:   
+        config_path = os.path.join("/u/poellhul/Documents/Masters/benchmarkIR/src/retrieval/configs", args.config+"_paired.json")
+        with open(config_path) as fp: arg_dict = json.load(fp)
 
     config = arg_dict["config"]
     settings = arg_dict["settings"]
@@ -81,13 +112,13 @@ if __name__ == "__main__":
     # Read the config
     print("Initializing training. ")
     config = CustomDPRConfig.from_dict(config)
-    config.vocab_size = tokenizer.vocab_size+4
+    config.vocab_size = tokenizer.vocab_size
     print(config)
 
     #model = DPR(("facebook/dpr-question_encoder-single-nq-base", "facebook/dpr-ctx_encoder-single-nq-base"))
     model = CustomDPR(config=config, model_path=(q_model_path, ctx_model_path), device=device)
     
-    #debug_parameters(model)
+    #debug_parameters(model, q_model_path)
     #debug_dataloader(dataloader)
 
     optim = AdamW([
@@ -96,7 +127,7 @@ if __name__ == "__main__":
     ]) # typical range is 1e-6 to 1e-4
 
     # Number of training epochs and warmup steps
-    epochs = 2
+    epochs = 5
     num_training_steps = epochs * len(dataloader)
     num_warmup_steps = int(0.1 * num_training_steps)
 
@@ -110,8 +141,10 @@ if __name__ == "__main__":
 
     loss_fct = contrastive_loss
 
-    print("Beginning training process. ")
+    experiment = comet_ml.Experiment(project_name="benchmarkIR", auto_metric_step_rate=100)
 
+
+    print("Beginning training process. ")
     # Training loop
     for epoch in range(epochs):
         loop = tqdm(dataloader, leave=True)
@@ -131,6 +164,9 @@ if __name__ == "__main__":
             optim.step()
             
             scheduler.step()
+
+            if (i%100==0) & train_args["logging"]:
+                log_metrics(model, experiment, i, epoch)
 
             loop.set_description(f'Epoch: {epoch}')
             loop.set_postfix(loss = loss.item())

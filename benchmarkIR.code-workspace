@@ -4,7 +4,10 @@
 			"path": "."
 		},
 		{
-			"path": "../../../../../part/01/Tmp/lvpoellhuber"
+			"path": "../../storage"
+		},
+		{
+			"path": "../../env/bmir-env"
 		}
 	],
 	"settings": {}

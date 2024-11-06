@@ -109,15 +109,19 @@ def preprocess_hotpotqa(out_dir, split="train"):
     dataset.save(save_path)
 
 def preprocess_dprqa(out_dir):
-    datasets = ["quora", "hotpotqa", "nq-train", "msmarco"]
+    datasets = ["msmarco", "quora", "hotpotqa", "nq-train"]
 
     pairs_queries = []
     pairs_docs = []
+
     for dataset_name in tqdm(datasets):
         #### Download NFCorpus dataset and unzip the dataset
         url = f"https://public.ukp.informatik.tu-darmstadt.de/thakur/BEIR/datasets/{dataset_name}.zip"
         data_path = util.download_and_unzip(url, out_dir)
-
+    
+    for dataset_name in tqdm(datasets):
+        url = f"https://public.ukp.informatik.tu-darmstadt.de/thakur/BEIR/datasets/{dataset_name}.zip"
+        data_path = util.download_and_unzip(url, out_dir)
         split = "dev" if dataset_name=="quora" else "train"
         corpus, queries, qrels = GenericDataLoader(data_folder=data_path).load(split=split)
 
@@ -138,6 +142,10 @@ def preprocess_dprqa(out_dir):
     }
 
     dataset = PairsDataset(pairs)    
+
+    if not os.path.exists(save_path):
+        os.mkdir(save_path)
+        
     save_path = os.path.join(out_dir, os.path.join("dprqa", "train.pt"))
     dataset.save(save_path)
 

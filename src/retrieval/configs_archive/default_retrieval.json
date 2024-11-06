@@ -1,9 +1,9 @@
 {
     "eval_args": {
         "task": "hotpotqa",
-        "dataset":null,
-        "model": "/part/01/Tmp/lvpoellhuber/models/custom_roberta/dpr",
-        "batch_size": 32
+        "dataset":"/part/01/Tmp/lvpoellhuber/datasets/hotpotqa/test.pt",
+        "model": "/part/01/Tmp/lvpoellhuber/models/custom_roberta/dpr_adaptive_hotpotqa",
+        "batch_size": 16
     },
     "config": {
         "vocab_size": 32,

@@ -16,7 +16,7 @@
         "dataset":"/part/01/Tmp/lvpoellhuber/datasets/mlm/mlm", 
         "epochs": 5,
         "batch_size": 32, 
-        "lr": 1e-5,
+        "lr": 1e-4,
         "use_checkpoint": false, 
         "logging": true,
         "train": true, 
