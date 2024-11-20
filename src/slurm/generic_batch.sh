@@ -14,6 +14,7 @@ echo $STORAGE_DIR
 source $STORAGE_DIR/bmir-env/bin/activate
 
 export STORAGE_DIR=$STORAGE_DIR
+export COMET_API_KEY=TzEzoqltg1eu3XaFzpKHYuQaD
 
 cd Documents/Masters/benchmarkIR
 

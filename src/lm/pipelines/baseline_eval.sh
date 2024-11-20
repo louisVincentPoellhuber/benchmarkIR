@@ -16,7 +16,7 @@ fi
 
 dataset=$STORAGE_DIR'/datasets'
 
-model_config='{"max_position_embeddings": 514,
+model_config='{"max_position_embeddings": 512,
         "hidden_size": 768,
         "num_attention_heads": 12,
         "num_hidden_layers": 6,
@@ -59,7 +59,7 @@ fi
 dataset=$STORAGE_DIR'/datasets'
 
 model_config='{
-        "max_position_embeddings": 514,
+        "max_position_embeddings": 512,
         "hidden_size": 768,
         "num_attention_heads": 12,
         "num_hidden_layers": 6,
@@ -116,7 +116,7 @@ dataset=$STORAGE_DIR'/datasets'
 
 model_config='{
         "vocab_size": 32,
-        "max_position_embeddings": 514,
+        "max_position_embeddings": 512,
         "hidden_size": 768,
         "num_attention_heads": 12,
         "num_hidden_layers": 6,
