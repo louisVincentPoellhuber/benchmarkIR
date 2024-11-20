@@ -1,26 +1,16 @@
 {
     "settings": {
-        "datapath":"/part/01/Tmp/lvpoellhuber/datasets/mlm", 
-        "model": "/part/01/Tmp/lvpoellhuber/models/custom_roberta/roberta_mlm",
-        "tokenizer": "/part/01/Tmp/lvpoellhuber/models/custom_roberta/roberta_mlm", 
-        "checkpoint": null, 
-        "accelerate": true
-    },
-    "preprocess_args": {
-        "preprocess": false,
+        "model": null,
+        "save_path": "STORAGE_DIR/models/custom_roberta/roberta_mlm",
+        "tokenizer": "STORAGE_DIR/models/custom_roberta/roberta_mlm", 
+        "dataset":"STORAGE_DIR/datasets/mlm/mlm", 
         "task": "mlm", 
-        "train_tokenizer": false, 
-        "overwrite": false
-    },
-    "train_args": {
-        "dataset":"/part/01/Tmp/lvpoellhuber/datasets/mlm/mlm", 
+        "accelerate": true,
+        "logging": true,
+        "exp_name": "roberta_mlm",
         "epochs": 5,
         "batch_size": 32, 
-        "lr": 1e-4,
-        "use_checkpoint": false, 
-        "logging": true,
-        "train": true, 
-        "eval": false
+        "lr": 1e-4
     },
     "config": {
         "vocab_size": 32,

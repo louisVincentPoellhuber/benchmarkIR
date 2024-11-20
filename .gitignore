@@ -3,3 +3,4 @@ wandb/
 LM-TFM/
 beir/
 attn_transformers/
+.env

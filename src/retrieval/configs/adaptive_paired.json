@@ -1,33 +1,17 @@
 {
     "settings": {
-        "datapath":"/part/01/Tmp/lvpoellhuber/datasets/hotpotqa", 
-        "q_model": "/part/01/Tmp/lvpoellhuber/models/custom_roberta/adaptive_mlm/roberta_model",
-        "ctx_model": "/part/01/Tmp/lvpoellhuber/models/custom_roberta/adaptive_mlm/roberta_model",
-        "save_path": "/part/01/Tmp/lvpoellhuber/models/custom_roberta/dpr_adaptive_hotpotqa",
-        "tokenizer": "/part/01/Tmp/lvpoellhuber/models/custom_roberta/adaptive_mlm/roberta_model", 
-        "checkpoint": null, 
-        "accelerate": true
-    },
-    "preprocess_args": {
-        "preprocess": false,
+        "q_model": "STORAGE_DIR/models/custom_roberta/adaptive_mlm/roberta_model",
+        "ctx_model": "STORAGE_DIR/models/custom_roberta/adaptive_mlm/roberta_model",
+        "save_path": "STORAGE_DIR/models/custom_roberta/dpr_adaptive_hotpotqa",
+        "tokenizer": "STORAGE_DIR/models/custom_roberta/adaptive_mlm/roberta_model", 
+        "dataset":"STORAGE_DIR/datasets/hotpotqa/train.pt", 
+        "accelerate": true,
+        "logging": false,
+        "exp_name": "adaptive_dpr",
         "task": "hotpotqa", 
-        "train_tokenizer": false, 
-        "overwrite": true
-    },
-    "train_args": {
-        "dataset":"/part/01/Tmp/lvpoellhuber/datasets/hotpotqa/train.pt", 
         "epochs": 2,
         "batch_size": 16, 
-        "lr": 1e-5,
-        "use_checkpoint": false, 
-        "logging": false,
-        "train": true, 
-        "eval": false
-    },
-    "eval_args": {
-        "eval": true,
-        "dataset":"/part/01/Tmp/lvpoellhuber/datasets/hotpotqa/test.pt",
-        "model": "/part/01/Tmp/lvpoellhuber/models/custom_roberta/dpr_adaptive_hotpotqa"
+        "lr": 1e-5
     },
     "config": {
         "max_position_embeddings": 514,

@@ -1,31 +1,16 @@
 {
     "settings": {
-        "datapath":"/part/01/Tmp/lvpoellhuber/datasets/glue/mnli", 
-        "model": "/part/01/Tmp/lvpoellhuber/models/custom_roberta/roberta_glue",
-        "tokenizer": "/part/01/Tmp/lvpoellhuber/models/custom_roberta/roberta_mlm",
-        "checkpoint": "/part/01/Tmp/lvpoellhuber/models/custom_roberta/roberta_mlm", 
-        "accelerate": true
-    },
-    "preprocess_args": {
-        "preprocess": false,
+        "model": "STORAGE_DIR/models/custom_roberta/roberta_mlm",
+        "save_path": "STORAGE_DIR/models/custom_roberta/roberta_glue",
+        "tokenizer": "STORAGE_DIR/models/custom_roberta/roberta_mlm",
+        "dataset":"STORAGE_DIR/datasets/glue/mnli/mnli_train.pt", 
         "task": "mnli", 
-        "train_tokenizer": false, 
-        "overwrite": false
-    },
-    "train_args": {
-        "dataset":"/part/01/Tmp/lvpoellhuber/datasets/glue/mnli/mnli_train.pt", 
+        "accelerate": true,
+        "logging": false,
+        "exp_name": "roberta_mnli",
         "epochs": 2,
         "batch_size": 16, 
-        "lr": 1e-5,
-        "use_checkpoint": true, 
-        "logging": false,
-        "train": true
-    },
-    "eval_args": {
-        "eval": true,
-        "dataset":"/part/01/Tmp/lvpoellhuber/datasets/glue/mnli/mnli_val.pt",
-        "model": "/part/01/Tmp/lvpoellhuber/models/custom_roberta/roberta_glue"
-
+        "lr": 1e-5
     },
     "config": {
         "max_position_embeddings": 514,

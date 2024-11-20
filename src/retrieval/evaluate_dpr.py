@@ -15,6 +15,14 @@ import json
 
 import torch
 
+
+import dotenv
+dotenv.load_dotenv()
+
+STORAGE_DIR = os.getenv("STORAGE_DIR")
+print(STORAGE_DIR)
+
+
 #### Just some code to print debug information to stdout
 logging.basicConfig(format='%(asctime)s - %(message)s',
                     datefmt='%Y-%m-%d %H:%M:%S', 
@@ -45,18 +53,28 @@ def parse_arguments():
 if __name__ == "__main__":    
     args = parse_arguments()
     print(f"Executing {args.config} retrieval.")
-    config_path = os.path.join("/u/poellhul/Documents/Masters/benchmarkIR/src/retrieval/configs", args.config+"_retrieval.json")
-    with open(config_path) as fp: arg_dict = json.load(fp)
+   
+   
+    if len(args.config_dict)>0:
+        arg_dict = json.loads(args.config_dict)
+    else:   
+        config_path = os.path.join("/u/poellhul/Documents/Masters/benchmarkIR/src/retrieval/configs", args.config+"_paired.json")
+        with open(config_path) as fp: arg_dict = json.load(fp)
+
+    for key in arg_dict["settings"]:
+        if type(arg_dict["settings"][key]) == str:
+            arg_dict["settings"][key] = arg_dict["settings"][key].replace("STORAGE_DIR", STORAGE_DIR)
+
 
     device = "cuda:0" if torch.cuda.is_available() else "cpu" 
     device = "cpu"
 
-    eval_args = arg_dict["eval_args"]
+    settings = arg_dict["settings"]
 
     # Main arguments
-    dpr_path = eval_args["model"]
-    task = eval_args["task"]
-    batch_size = eval_args["batch_size"]
+    dpr_path = settings["model"]
+    task = settings["task"]
+    batch_size = settings["batch_size"]
     
     dpr_model = CustomDPR.from_pretrained(model_path=dpr_path, device=device)
     #dpr_model = DPR(("facebook/dpr-question_encoder-multiset-base", "facebook/dpr-ctx_encoder-multiset-base",))

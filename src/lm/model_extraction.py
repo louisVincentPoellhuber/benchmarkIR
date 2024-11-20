@@ -5,9 +5,17 @@ import os
 from tqdm import tqdm
 import json
 
+
+import dotenv
+dotenv.load_dotenv()
+
+STORAGE_DIR = os.getenv("STORAGE_DIR")
+print(STORAGE_DIR)
+
+
 if __name__ == "__main__":    
-    model_dir = "/part/01/Tmp/lvpoellhuber/models/custom_roberta"
-    tokenizer = get_tokenizer("/part/01/Tmp/lvpoellhuber/models/custom_roberta/roberta_mlm")
+    model_dir = STORAGE_DIR+"/models/custom_roberta"
+    tokenizer = get_tokenizer(STORAGE_DIR+"/models/custom_roberta/roberta_mlm")
     models = ["roberta", "adaptive", "sparse"]
 
     for model in models:
@@ -22,7 +30,7 @@ if __name__ == "__main__":
         if model == "roberta": model = "default"
 
         config_name = model + "_finetune.json"
-        config_path = os.path.join("/u/poellhul/Documents/Masters/benchmarkIR/src/configs", config_name)
+        config_path = os.path.join("src/configs", config_name)
         
         with open(config_path) as cpath:
             config = json.load(cpath)["config"]

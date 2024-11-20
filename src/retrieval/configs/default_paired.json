@@ -1,33 +1,17 @@
 {
     "settings": {
-        "datapath":"/part/01/Tmp/lvpoellhuber/datasets/dprqa", 
-        "q_model": "/part/01/Tmp/lvpoellhuber/models/backups/roberta_mlm_241019/roberta_model",
-        "ctx_model": "/part/01/Tmp/lvpoellhuber/models/backups/roberta_mlm_241019/roberta_model",
-        "save_path": "/part/01/Tmp/lvpoellhuber/models/custom_roberta/dpr",
-        "tokenizer": "/part/01/Tmp/lvpoellhuber/models/backups/roberta_mlm_241019", 
-        "checkpoint": null, 
-        "accelerate": true
-    },
-    "preprocess_args": {
-        "preprocess": false,
+        "q_model": "STORAGE_DIR/models/backups/roberta_mlm_241019/roberta_model",
+        "ctx_model": "STORAGE_DIR/models/backups/roberta_mlm_241019/roberta_model",
+        "save_path": "STORAGE_DIR/models/custom_roberta/dpr",
+        "tokenizer": "STORAGE_DIR/models/backups/roberta_mlm_241019", 
+        "dataset":"STORAGE_DIR/datasets/dprqa/train.pt", 
+        "accelerate": true,
+        "logging": true,
+        "exp_name": "roberta_dpr",
         "task": "dprqa", 
-        "train_tokenizer": false, 
-        "overwrite": false
-    },
-    "train_args": {
-        "dataset":"/part/01/Tmp/lvpoellhuber/datasets/dprqa/train.pt", 
         "epochs": 5,
         "batch_size": 32, 
-        "lr": 1e-5,
-        "use_checkpoint": false, 
-        "logging": true,
-        "train": true, 
-        "eval": false
-    },
-    "eval_args": {
-        "eval": true,
-        "dataset": null,
-        "model": null
+        "lr": 1e-5
     },
     "config": {
         "vocab_size": 32,

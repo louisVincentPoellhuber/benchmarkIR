@@ -7,7 +7,7 @@ argparser.add_argument('--path')
 args = argparser.parse_args()
 path = args.path
 
-model_name = os.path.basename(path)
+model_name = os.path.basename(os.path.basename(path))
 tasks = ["cola", "mnli", "mrpc", "qnli", "qqp", "rte", "sst2", "wnli"] 
 
 avg_metrics_path = os.path.join(os.path.dirname(path), "avg_metrics.csv")
@@ -30,10 +30,12 @@ for model in finetune_paths:
     accuracies.append(avg_acc)
     tasks.append(task)
 
-metrics_df = pd.DataFrame(accuracies, index = tasks, columns = [model_name])
+metrics_df = pd.DataFrame(accuracies, index = tasks, columns = [model_name]).T
 
-avg_metrics = pd.concat([avg_metrics, metrics_df.T])
+print(metrics_df.columns)
 
-print(avg_metrics)
+avg_metrics = pd.concat([avg_metrics, metrics_df])
+
+#print(avg_metrics)
 
 avg_metrics.to_csv(avg_metrics_path)

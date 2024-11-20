@@ -1,31 +1,16 @@
 {
     "settings": {
-        "datapath":"/part/01/Tmp/lvpoellhuber/datasets", 
-        "model": "/part/01/Tmp/lvpoellhuber/models/custom_roberta",
-        "tokenizer": "/part/01/Tmp/lvpoellhuber/models/custom_roberta/roberta_mlm",
-        "checkpoint": "/part/01/Tmp/lvpoellhuber/models/custom_roberta/adaptive_mlm", 
-        "accelerate": true
-    },
-    "preprocess_args": {
-        "preprocess": false,
+        "model": "STORAGE_DIR/models/custom_roberta",
+        "save_path": "STORAGE_DIR/models/custom_roberta",
+        "tokenizer": "STORAGE_DIR/models/custom_roberta/roberta_mlm",
+        "dataset":"STORAGE_DIR/datasets", 
         "task": "glue", 
-        "train_tokenizer": false, 
-        "overwrite": false
-    },
-    "train_args": {
-        "dataset":"/part/01/Tmp/lvpoellhuber/datasets", 
+        "accelerate": true,
+        "logging": false,
+        "exp_name": "glue_adaptive_finetune",
         "epochs": 2,
         "batch_size": 16, 
-        "lr": 1e-5,
-        "use_checkpoint": true, 
-        "logging": false,
-        "train": true
-    },
-    "eval_args": {
-        "eval": true,
-        "dataset":"/part/01/Tmp/lvpoellhuber/datasets",
-        "model": "/part/01/Tmp/lvpoellhuber/models/custom_roberta"
-
+        "lr": 1e-5
     },
     "config": {
         "max_position_embeddings": 514,

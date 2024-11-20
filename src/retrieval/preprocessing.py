@@ -10,7 +10,14 @@ from beir.datasets.data_loader import GenericDataLoader
 from transformers import RobertaTokenizerFast
 
 
-DATASETS_PATH = "/part/01/Tmp/lvpoellhuber/datasets"
+import dotenv
+dotenv.load_dotenv()
+
+STORAGE_DIR = os.getenv("STORAGE_DIR")
+print(STORAGE_DIR)
+
+
+DATASETS_PATH = STORAGE_DIR+"/datasets"
 
 class PairsDataset(torch.utils.data.Dataset):
     def __init__(self, pairs):
@@ -50,7 +57,7 @@ class RetrievalDataset(torch.utils.data.Dataset):
 def parse_arguments():
     argparser = argparse.ArgumentParser("masked language modeling")
     argparser.add_argument('--task', default="dprqa") # wikipedia
-    argparser.add_argument('--datapath', default="/part/01/Tmp/lvpoellhuber/datasets") 
+    argparser.add_argument('--datapath', default=STORAGE_DIR+"/datasets") 
     argparser.add_argument('--overwrite', default=False) # wikipedia
 
     args = argparser.parse_args()

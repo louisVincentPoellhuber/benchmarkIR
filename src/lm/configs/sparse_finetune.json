@@ -1,47 +1,24 @@
 {
     "settings": {
-        "datapath":"/part/01/Tmp/lvpoellhuber/datasets/glue/mnli", 
-        "model": "/part/01/Tmp/lvpoellhuber/models/custom_roberta/sparse_glue",
-        "tokenizer": "/part/01/Tmp/lvpoellhuber/models/custom_roberta/roberta_mlm",
-        "checkpoint": "/part/01/Tmp/lvpoellhuber/models/custom_roberta/sparse_mlm",
-        "accelerate": true
-    },
-    "preprocess_args": {
-        "preprocess": false,
-        "task": "mnli", 
-        "train_tokenizer": false, 
-        "overwrite": false
-    },
-    "train_args": {
-        "dataset":"/part/01/Tmp/lvpoellhuber/datasets/glue/mnli/mnli_train.pt", 
+        "model": "STORAGE_DIR/models/custom_roberta/sparse_mlm",
+        "save_path": "STORAGE_DIR/models/custom_roberta/sparse_glue",
+        "tokenizer": "STORAGE_DIR/models/custom_roberta/roberta_mlm",
+        "dataset":"STORAGE_DIR/datasets/glue/mnli/mnli_train.pt", 
+        "task": "mnli",
+        "accelerate": true,
+        "logging": false,
+        "exp_name": "sparse_mnli",
         "epochs": 2,
         "batch_size": 16, 
-        "lr": 1e-5,
-        "use_checkpoint": true, 
-        "logging": false,
-        "train": true
-    },
-    "eval_args": {
-        "eval": true,
-        "dataset":"/part/01/Tmp/lvpoellhuber/datasets/glue/mnli/mnli_val.pt",
-        "model": "/part/01/Tmp/lvpoellhuber/models/custom_roberta/sparse_glue"
-
+        "lr": 1e-5
     },
     "config": {
+        "vocab_size": 32,
         "max_position_embeddings": 514,
         "hidden_size": 768,
         "num_attention_heads": 12,
         "num_hidden_layers": 6,
         "type_vocab_size": 1,
-        "attn_mechanism": "sparse",
-        "num_labels":4,
-        "inner_hidden_size": 1024,
-        "dropout": 0,
-        "attn_span": 1024,
-        "adapt_span_enabled": true,
-        "adapt_span_loss": 2e-06,
-        "adapt_span_ramp": 32,
-        "adapt_span_init": 0,
-        "adapt_span_cache": true
+        "attn_mechanism": "sparse"
     }
 }

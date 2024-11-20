@@ -1,31 +1,16 @@
 {
     "settings": {
-        "datapath":"/part/01/Tmp/lvpoellhuber/datasets", 
-        "model": "/part/01/Tmp/lvpoellhuber/models/custom_roberta",
-        "tokenizer": "/part/01/Tmp/lvpoellhuber/models/backups/roberta_mlm_241019",
-        "checkpoint": "/part/01/Tmp/lvpoellhuber/models/backups/roberta_mlm_241019", 
-        "accelerate": true
-    },
-    "preprocess_args": {
-        "preprocess": false,
-        "task": "glue", 
-        "train_tokenizer": false, 
-        "overwrite": false
-    },
-    "train_args": {
-        "dataset":"/part/01/Tmp/lvpoellhuber/datasets", 
+        "model": "STORAGE_DIR/models/custom_roberta",
+        "save_path": "STORAGE_DIR/models/custom_roberta",
+        "tokenizer": "STORAGE_DIR/models/backups/roberta_mlm_241019",
+        "dataset":"STORAGE_DIR/datasets", 
+        "task": "glue",
+        "accelerate": true,
+        "logging": false,
+        "exp_name": "glue_finetune",
         "epochs": 3,
         "batch_size": 32, 
-        "lr": 1e-5,
-        "use_checkpoint": true, 
-        "logging": false,
-        "train": true
-    },
-    "eval_args": {
-        "eval": true,
-        "dataset":"/part/01/Tmp/lvpoellhuber/datasets",
-        "model": "/part/01/Tmp/lvpoellhuber/models/custom_roberta"
-
+        "lr": 1e-5
     },
     "config": {
         "max_position_embeddings": 514,

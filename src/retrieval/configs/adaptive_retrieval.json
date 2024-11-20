@@ -1,8 +1,8 @@
 {
-    "eval_args": {
+    "settings": {
+        "model": "STORAGE_DIR/models/custom_roberta/dpr_adaptive_hotpotqa",
+        "dataset":"STORAGE_DIR/datasets/hotpotqa/test.pt",
         "task": "hotpotqa",
-        "dataset":"/part/01/Tmp/lvpoellhuber/datasets/hotpotqa/test.pt",
-        "model": "/part/01/Tmp/lvpoellhuber/models/custom_roberta/dpr_adaptive_hotpotqa",
         "batch_size": 16
     },
     "config": {

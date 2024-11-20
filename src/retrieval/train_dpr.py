@@ -15,6 +15,14 @@ import json
 from tqdm import tqdm
 import argparse
 
+
+import dotenv
+dotenv.load_dotenv()
+
+STORAGE_DIR = os.getenv("STORAGE_DIR")
+print(STORAGE_DIR)
+
+
 def debug_parameters(model, pretrained_path):
     pretrained_roberta = CustomRobertaModel.from_pretrained(pretrained_path).to(device)
     #pretrained_roberta.roberta.save_pretrained("/part/01/Tmp/lvpoellhuber/models/custom_roberta/test", from_pt = True) 
@@ -81,26 +89,31 @@ if __name__ == "__main__":
     args = parse_arguments()
     
     if len(args.config_dict)>0:
-        arg_dict = args.config_dict
+        arg_dict = json.loads(args.config_dict)
     else:   
         config_path = os.path.join("/u/poellhul/Documents/Masters/benchmarkIR/src/retrieval/configs", args.config+"_paired.json")
         with open(config_path) as fp: arg_dict = json.load(fp)
 
+    
+    for key in arg_dict["settings"]:
+        if type(arg_dict["settings"][key]) == str:
+            arg_dict["settings"][key] = arg_dict["settings"][key].replace("STORAGE_DIR", STORAGE_DIR)
+
+
     config = arg_dict["config"]
     settings = arg_dict["settings"]
-    train_args = arg_dict["train_args"]
-    preprocess_args = arg_dict["preprocess_args"]
+    
     enable_accelerate = settings["accelerate"]
+    logging = settings["logging"]
 
     # Main arguments
-    data_path = settings["datapath"]
-    dataset_path = train_args["dataset"]
+    dataset_path = settings["dataset"]
     q_model_path = settings["q_model"]
     ctx_model_path = settings["ctx_model"]
     model_path = settings["save_path"]
     tokenizer_path = settings["tokenizer"]
-    chkpt_path = settings["checkpoint"] if settings["checkpoint"] != None else os.path.join(model_path, "checkpoints")
-    task = preprocess_args["task"]
+
+    task = settings["task"]
 
     device = "cuda:0" if torch.cuda.is_available() else "cpu" 
     #device="cpu"  
@@ -165,7 +178,7 @@ if __name__ == "__main__":
             
             scheduler.step()
 
-            if (i%100==0) & train_args["logging"]:
+            if (i%100==0) & logging:
                 log_metrics(model, experiment, i, epoch)
 
             loop.set_description(f'Epoch: {epoch}')

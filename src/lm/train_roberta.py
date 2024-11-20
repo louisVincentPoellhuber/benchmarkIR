@@ -14,6 +14,13 @@ import os
 from preprocessing import preprocess_main, get_dataloader, get_tokenizer, get_mlm_dataloader
 from model_custom_roberta import *
 
+import dotenv
+dotenv.load_dotenv()
+
+STORAGE_DIR = os.getenv("STORAGE_DIR")
+print(STORAGE_DIR)
+
+
 def parse_arguments():
     argparser = argparse.ArgumentParser("BenchmarkIR Script")
     argparser.add_argument('--config', default="default") # default, adaptive, sparse
@@ -24,24 +31,24 @@ def parse_arguments():
 
     return args
 
-def save_model(enable_accelerate, accelerator, model, model_path):
+def save_model(enable_accelerate, accelerator, model, save_path):
     if enable_accelerate:
     
         unwrapped_model = accelerator.unwrap_model(model)
         unwrapped_model.save_pretrained(
-            model_path,
+            save_path,
             is_main_process=accelerator.is_main_process,
             save_function=accelerator.save,
         )
-        roberta_path = os.path.join(model_path, "roberta_model")
+        roberta_path = os.path.join(save_path, "roberta_model")
         unwrapped_model.roberta.save_pretrained(
             roberta_path,
             is_main_process=accelerator.is_main_process,
             save_function=accelerator.save,
         )
     else:
-        model.save_pretrained(model_path, from_pt = True)
-        roberta_path = os.path.join(model_path, "roberta_model")
+        model.save_pretrained(save_path, from_pt = True)
+        roberta_path = os.path.join(save_path, "roberta_model")
         model.roberta.save_pretrained(roberta_path, from_pt=True)
 
 def log_metrics(accelerator, model, experiment, step, epoch, num_training_steps, config, loss):
@@ -95,27 +102,32 @@ if __name__ == "__main__":
     # Parse arguments
     args = parse_arguments()
     if len(args.config_dict)>0:
-        arg_dict = args.config_dict
+        arg_dict = json.loads(args.config_dict)
     else:   
         if args.archive:
-            config_path = os.path.join("/u/poellhul/Documents/Masters/benchmarkIR/src/lm/configs_archive", args.config+"_mlm.json")
+            config_path = os.path.join("/home/lvpoellhuber/projects/benchmarkIR/src/lm/configs_archive/old", args.config+"_mlm.json")
         else:
-            config_path = os.path.join("/u/poellhul/Documents/Masters/benchmarkIR/src/lm/configs", args.config+"_mlm.json")
+            config_path = os.path.join("/home/lvpoellhuber/projects/benchmarkIR/src/lm/configs", args.config+"_mlm.json")
         
         with open(config_path) as fp: arg_dict = json.load(fp)
 
+    
+    for key in arg_dict["settings"]:
+        if type(arg_dict["settings"][key]) == str:
+            arg_dict["settings"][key] = arg_dict["settings"][key].replace("STORAGE_DIR", STORAGE_DIR)
+
+
     config = arg_dict["config"]
     settings = arg_dict["settings"]
-    train_args = arg_dict["train_args"]
-    preprocess_args = arg_dict["preprocess_args"]
+    
     enable_accelerate = settings["accelerate"]
+    logging = settings["logging"]
 
     # Main arguments
-    data_path = settings["datapath"]
-    dataset_path = train_args["dataset"]
+    dataset_path = settings["dataset"]
     model_path = settings["model"]
+    model_save_path = settings["save_path"]
     tokenizer_path = settings["tokenizer"]
-    chkpt_path = settings["checkpoint"] if settings["checkpoint"] != None else os.path.join(model_path, "checkpoints")
 
     if enable_accelerate:
         print("Accelerate enabled. ")
@@ -126,17 +138,12 @@ if __name__ == "__main__":
         device = "cuda" if torch.cuda.is_available() else "cpu"
         accelerator=None
 
-
-    # Generate or load dataset + tokenizer
-    if preprocess_args["preprocess"]:
-        preprocess_main(preprocess_args["dataset"], data_path, tokenizer_path, preprocess_args["train_tokenizer"], preprocess_args["overwrite"])
-
     tokenizer = get_tokenizer(tokenizer_path)
 
     if args.archive:
-        dataloader = get_dataloader(train_args["batch_size"], dataset_path)
+        dataloader = get_dataloader(settings["batch_size"], dataset_path)
     else:
-        dataloader = get_mlm_dataloader(train_args["batch_size"], dataset_path, tokenizer)
+        dataloader = get_mlm_dataloader(settings["batch_size"], dataset_path, tokenizer)
 
     # Read the config
     print("Initializing training. ")
@@ -159,14 +166,14 @@ if __name__ == "__main__":
             if not name.endswith('attention.self.alpha'):
                 other_params.append(param)
         optim = AdamW([
-                {'params': other_params, 'lr': train_args["lr"]},  # Default learning rate for most parameters
+                {'params': other_params, 'lr': settings["lr"]},  # Default learning rate for most parameters
                 {'params': alpha_params, 'lr': 10.0}          # Higher learning rate for alpha
             ], betas=(0.9, 0.98), eps=1e-6)
     else:
-        optim = AdamW(model.parameters(), lr=train_args["lr"], betas=(0.9, 0.98), eps=1e-6) # typical range is 1e-6 to 1e-4
+        optim = AdamW(model.parameters(), lr=settings["lr"], betas=(0.9, 0.98), eps=1e-6) # typical range is 1e-6 to 1e-4
 
     # Number of training epochs and warmup steps
-    epochs = train_args["epochs"]
+    epochs = settings["epochs"]
     num_training_steps = epochs * len(dataloader)
     num_warmup_steps = int(0.1 * num_training_steps) if args.archive else 10000
 
@@ -186,7 +193,7 @@ if __name__ == "__main__":
 
     print("Beginning training process. ")
     # WandB stuff
-    if train_args["logging"]:
+    if logging:
         
         experiment = None
         if enable_accelerate: 
@@ -197,10 +204,6 @@ if __name__ == "__main__":
             experiment = comet_ml.Experiment(project_name="benchmarkIR", auto_metric_step_rate=100, )
     # You can add a config here, for the experiment
    
-    #if train_args["use_checkpoint"]: # TODO: Figure out how to use checkpoint
-    #    accelerator.print(f"Resumed from checkpoint: {chkpt_path}")
-    #    accelerator.load_state(chkpt_path, strict=False)
-
     # Training loop
     for epoch in range(epochs):
         loop = tqdm(dataloader, leave=True)
@@ -231,18 +234,18 @@ if __name__ == "__main__":
             scheduler.step()
 
             if (i%100000==0) & (i!=0):
-                save_model(enable_accelerate, accelerator, model, model_path)
+                save_model(enable_accelerate, accelerator, model, model_save_path)
             
-            if (i%100==0) & train_args["logging"]:
+            if (i%100==0) & logging:
                 log_metrics(accelerator, model, experiment, i, epoch, len(loop), config, loss)
 
             loop.set_description(f'Epoch: {epoch}')
             loop.set_postfix(loss = loss.item())
         
-        save_model(enable_accelerate, accelerator, model, model_path)
+        save_model(enable_accelerate, accelerator, model, model_save_path)
 
 
     print("Training done. Saving model. ")
     
     accelerator.end_training()
-    save_model(enable_accelerate, accelerator, model, model_path)
+    save_model(enable_accelerate, accelerator, model, model_save_path)

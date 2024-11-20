@@ -11,7 +11,14 @@ import torch
 from datasets import load_dataset, concatenate_datasets, load_from_disk
 
 
-DATASETS_PATH = "/part/01/Tmp/lvpoellhuber/datasets"
+import dotenv
+dotenv.load_dotenv()
+
+STORAGE_DIR = os.getenv("STORAGE_DIR")
+print(STORAGE_DIR)
+
+
+DATASETS_PATH = STORAGE_DIR+"/datasets"
 
 class Dataset(torch.utils.data.Dataset):
     def __init__(self, encodings):
@@ -31,10 +38,10 @@ class Dataset(torch.utils.data.Dataset):
 def parse_arguments():
     argparser = argparse.ArgumentParser("masked language modeling")
     argparser.add_argument('--task', default="glue") # wikipedia, glue, mlm
-    argparser.add_argument('--datapath', default="/part/01/Tmp/lvpoellhuber/datasets") 
-    argparser.add_argument('--tokenizer_path', default="/part/01/Tmp/lvpoellhuber/models/custom_roberta/roberta_mlm")
-    argparser.add_argument('--train_tokenizer', default=True) # wikipedia
-    argparser.add_argument('--overwrite', default=False) # wikipedia
+    argparser.add_argument('--datapath', default=DATASETS_PATH) 
+    argparser.add_argument('--tokenizer_path', default=STORAGE_DIR+"/models/custom_roberta/roberta_mlm")
+    argparser.add_argument('--train_tokenizer', default=False) # wikipedia
+    argparser.add_argument('--overwrite', default=True) # wikipedia
 
     args = argparser.parse_args()
 
@@ -51,7 +58,7 @@ def get_tokenizer(tokenizer_path):
 def get_dataloader(batch_size, dataset_path):
     dataset = Dataset(torch.load(dataset_path))
     dataloader = torch.utils.data.DataLoader(dataset, batch_size = batch_size, shuffle=True)
-
+    
     return dataloader
 
 def get_mlm_dataloader(batch_size, dataset_path, tokenizer):
@@ -144,7 +151,7 @@ def preprocess_wikipedia(data_path, tokenizer_path, train_tokenizer=False, overw
         save_path: Where to save the dataset object. 
     '''
     def generate_dataset(tokenizer, paths, save_path, overwrite=False):
-        if os.path.exists(save_path) & ~overwrite:
+        if os.path.exists(save_path) & (not overwrite):
             print("Dataset already exists. ")
         else:
             print("Generating dataset object. ")
@@ -389,7 +396,7 @@ def preprocess_glue(task, data_path, tokenizer_path, overwrite):
         save_path: Where to save the dataset object. 
     '''
     def generate_two_sentence_dataset(sentence1, sentence2, data, tokenizer, save_path, split, overwrite):
-        if os.path.exists(save_path) & ~overwrite:
+        if os.path.exists(save_path) & (not overwrite):
             print("Loading dataset. ")
             dataset = Dataset(torch.load(save_path))
         else:
@@ -399,6 +406,7 @@ def preprocess_glue(task, data_path, tokenizer_path, overwrite):
             input_ids = []
             mask = []
             labels = []
+            sequences = []
 
             for i in tqdm(range(len(data_split))):
                 sequence = data_split[i][sentence1] + "</s></s>" + data_split[i][sentence2]
@@ -407,16 +415,18 @@ def preprocess_glue(task, data_path, tokenizer_path, overwrite):
                 input_ids.append(tokenized_seq.input_ids)
                 mask.append(tokenized_seq.attention_mask)
                 labels.append(data_split[i]["label"])
+                sequences.append(sequence)
 
             
             input_ids = torch.cat(input_ids) # concatenate all the tensors
             mask = torch.cat(mask) 
             labels = torch.Tensor(labels).long()
 
-            encodings = {
+            encodings = {##
                 "input_ids": input_ids, # tokens with mask 
                 "attention_mask": mask,
-                "labels": labels # tokens without mask
+                "labels": labels, # tokens without mask
+                "sequence": sequences
             }
 
             dataset = Dataset(encodings)
@@ -425,7 +435,7 @@ def preprocess_glue(task, data_path, tokenizer_path, overwrite):
         return dataset
     
     def generate_single_sentence_dataset(sentence, data, tokenizer, save_path, split, overwrite):
-        if os.path.exists(save_path) & ~overwrite:
+        if os.path.exists(save_path) & (not overwrite):
             print("Loading dataset. ")
             dataset = Dataset(torch.load(save_path))
         else:
@@ -435,6 +445,7 @@ def preprocess_glue(task, data_path, tokenizer_path, overwrite):
             input_ids = []
             mask = []
             labels = []
+            sequences = []
 
             for i in tqdm(range(len(data_split))):
                 sequence = data_split[i][sentence]
@@ -443,6 +454,7 @@ def preprocess_glue(task, data_path, tokenizer_path, overwrite):
                 input_ids.append(tokenized_seq.input_ids)
                 mask.append(tokenized_seq.attention_mask)
                 labels.append(data_split[i]["label"])
+                sequences.append(sequence)
 
             
             input_ids = torch.cat(input_ids) # concatenate all the tensors
@@ -452,7 +464,8 @@ def preprocess_glue(task, data_path, tokenizer_path, overwrite):
             encodings = {
                 "input_ids": input_ids, # tokens with mask 
                 "attention_mask": mask,
-                "labels": labels # tokens without mask
+                "labels": labels, # tokens without mask
+                "sequence": sequences
             }
 
             dataset = Dataset(encodings)

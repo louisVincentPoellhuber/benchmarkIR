@@ -1,170 +1,145 @@
+echo $STORAGE_DIR
 
 ################################### RoBERTa Baseline ###################################
-# batch_size = 44
-# lr = 1e-4
+batch_size=44
+lr=1e-4
+
+exp_name="roberta_baseline"
 
 echo Evaluating Roberta Baseline.
 
-model_path="/part/01/Tmp/lvpoellhuber/models/finetune_roberta/roberta_baseline"
+model_path=$STORAGE_DIR'/models/finetune_roberta/'$exp_name
+echo $model_path
 if [[ ! -d $model_path ]]; then
   mkdir -p $model_path
 fi
 
-config='{
-            "settings": {
-                "datapath":"/part/01/Tmp/lvpoellhuber/datasets", 
-                "model": "FacebookAI/roberta-base",
-                "save_path": "/part/01/Tmp/lvpoellhuber/models/finetune_roberta/roberta_baseline",
-                "tokenizer": "FacebookAI/roberta-base",
-                "checkpoint": "FacebookAI/roberta-base", 
-                "accelerate": true},
-            "preprocess_args": {
-                "preprocess": false,
-                "task": "glue", 
-                "train_tokenizer": false, 
-                "overwrite": false},
-            "train_args": {
-                "dataset":"/part/01/Tmp/lvpoellhuber/datasets", 
-                "epochs": 1,
-                "batch_size": 44,  
-                "lr": 1e-4,
-                "use_checkpoint": true, 
-                "logging": false,
-                "exp_name": "roberta_baseline",
-                "train": false},
-            "eval_args": {
-                "eval": true,
-                "dataset":"/part/01/Tmp/lvpoellhuber/datasets",
-                "model": "FacebookAI/roberta-base"},
-            "config": {
-                "max_position_embeddings": 514,
-                "hidden_size": 768,
-                "num_attention_heads": 12,
-                "num_hidden_layers": 6,
-                "type_vocab_size": 1,
-                "attn_mechanism": "eager",
-                "num_labels": 2}
-        }'
+dataset=$STORAGE_DIR'/datasets'
+
+model_config='{"max_position_embeddings": 514,
+        "hidden_size": 768,
+        "num_attention_heads": 12,
+        "num_hidden_layers": 6,
+        "type_vocab_size": 1,
+        "attn_mechanism": "eager",
+        "num_labels": 2}'
+
+
+config='{"settings": {
+            "model": "FacebookAI/roberta-base",
+            "save_path": "'$model_path'",
+            "tokenizer": "FacebookAI/roberta-base",
+            "dataset":"'$dataset'", 
+            "task": "glue", 
+            "accelerate": true,
+            "logging": false,
+            "exp_name": "'$exp_name'",
+            "epochs": 1,
+            "batch_size":'$batch_size',  
+            "lr": '$lr'},
+        "config":'$model_config'}'
 
 python src/lm/evaluate_roberta.py --config_dict "$config"
 
 python src/lm/metrics.py --path $model_path
 
-################################### Adaptive Baseline ###################################
-#batch_size = 44
-#lr = 1e-4
+# ################################### Adaptive Baseline ###################################
+batch_size=44
+lr=1e-4
+
+exp_name="adaptive_baseline"
 
 echo Evaluating Adaptive baseline.
 
-model_path="/part/01/Tmp/lvpoellhuber/models/finetune_roberta/adaptive_baseline"
+model_path=$STORAGE_DIR'/models/finetune_roberta/'$exp_name
 if [[ ! -d $model_path ]]; then
   mkdir -p $model_path
 fi
 
+dataset=$STORAGE_DIR'/datasets'
+
+model_config='{
+        "max_position_embeddings": 514,
+        "hidden_size": 768,
+        "num_attention_heads": 12,
+        "num_hidden_layers": 6,
+        "type_vocab_size": 1,
+        "attn_mechanism": "adaptive",
+        "num_labels":4,
+        "inner_hidden_size": 1024,
+        "dropout": 0,
+        "attn_span": 1024,
+        "adapt_span_enabled": true,
+        "adapt_span_loss": 2e-06,
+        "adapt_span_ramp": 32,
+        "adapt_span_init": 0,
+        "adapt_span_cache": true
+    }'
+
+
 config='{
             "settings": {
-                "datapath":"/part/01/Tmp/lvpoellhuber/datasets", 
                 "model": "FacebookAI/roberta-base",
-                "save_path": "/part/01/Tmp/lvpoellhuber/models/finetune_roberta/adaptive_baseline",
+                "save_path": "'$model_path'",
                 "tokenizer": "FacebookAI/roberta-base",
-                "checkpoint": "FacebookAI/roberta-base", 
-                "accelerate": true},
-            "preprocess_args": {
-                "preprocess": false,
+                "dataset":"'$dataset'", 
                 "task": "glue", 
-                "train_tokenizer": false, 
-                "overwrite": false},
-            "train_args": {
-                "dataset":"/part/01/Tmp/lvpoellhuber/datasets", 
-                "epochs": 10,
-                "batch_size": 32,  
-                "lr": 1e-4,
-                "use_checkpoint": true, 
-                "exp_name": "adaptive_baseline",
+                "accelerate": true,
                 "logging": false,
-                "train": false},
-            "eval_args": {
-                "eval": true,
-                "dataset":"/part/01/Tmp/lvpoellhuber/datasets",
-                "model": "FacebookAI/roberta-base"},
-            "config": {
-                "max_position_embeddings": 514,
-                "hidden_size": 768,
-                "num_attention_heads": 12,
-                "num_hidden_layers": 6,
-                "type_vocab_size": 1,
-                "attn_mechanism": "adaptive",
-                "num_labels":4,
-                "inner_hidden_size": 1024,
-                "dropout": 0,
-                "attn_span": 1024,
-                "adapt_span_enabled": true,
-                "adapt_span_loss": 2e-06,
-                "adapt_span_ramp": 32,
-                "adapt_span_init": 0,
-                "adapt_span_cache": true
-            }
+                "exp_name": "'$exp_name'",
+                "epochs": 1,
+                "batch_size":'$batch_size',  
+                "lr": '$lr'},
+            "config":'$model_config'
         }'
+
 
 python src/lm/evaluate_roberta.py --config_dict "$config"
 
 python src/lm/metrics.py --path $model_path
 
 ################################### Sparse Baseline ###################################
-# batch_size = 44
-# lr = 1e-4
+batch_size=44
+lr=1e-4
+alpha_lr=10
 
-echo Evaluating Sparse Baseline.
+exp_name="sparse_baseline"
 
-model_path="/part/01/Tmp/lvpoellhuber/models/finetune_roberta/sparse_baseline"
+echo Evaluating Sparse baseline.
+
+model_path=$STORAGE_DIR'/models/finetune_roberta/'$exp_name
 if [[ ! -d $model_path ]]; then
   mkdir -p $model_path
 fi
 
+dataset=$STORAGE_DIR'/datasets'
+
+model_config='{
+        "vocab_size": 32,
+        "max_position_embeddings": 514,
+        "hidden_size": 768,
+        "num_attention_heads": 12,
+        "num_hidden_layers": 6,
+        "type_vocab_size": 1,
+        "attn_mechanism": "sparse"
+    }'
+
 
 config='{
             "settings": {
-                "datapath":"/part/01/Tmp/lvpoellhuber/datasets", 
                 "model": "FacebookAI/roberta-base",
-                "save_path": "/part/01/Tmp/lvpoellhuber/models/finetune_roberta/sparse_baseline",
+                "save_path": "'$model_path'",
                 "tokenizer": "FacebookAI/roberta-base",
-                "checkpoint": "FacebookAI/roberta-base", 
-                "accelerate": true},
-            "preprocess_args": {
-                "preprocess": false,
+                "dataset":"'$dataset'", 
                 "task": "glue", 
-                "train_tokenizer": false, 
-                "overwrite": false},
-            "train_args": {
-                "dataset":"/part/01/Tmp/lvpoellhuber/datasets", 
-                "epochs": 10,
-                "batch_size": 32,  
-                "lr": 1e-4,
-                "use_checkpoint": true, 
-                "exp_name": "sparse_baseline",
+                "accelerate": true,
                 "logging": false,
-                "train": false},
-            "eval_args": {
-                "eval": true,
-                "dataset":"/part/01/Tmp/lvpoellhuber/datasets",
-                "model": "FacebookAI/roberta-base"},
-            "config": {
-                "max_position_embeddings": 514,
-                "hidden_size": 768,
-                "num_attention_heads": 12,
-                "num_hidden_layers": 6,
-                "type_vocab_size": 1,
-                "attn_mechanism": "sparse",
-                "num_labels":4,
-                "inner_hidden_size": 1024,
-                "dropout": 0,
-                "attn_span": 1024,
-                "adapt_span_enabled": true,
-                "adapt_span_loss": 2e-06,
-                "adapt_span_ramp": 32,
-                "adapt_span_init": 0,
-                "adapt_span_cache": true
-            }
+                "exp_name": "'$exp_name'",
+                "epochs": 1,
+                "batch_size":'$batch_size',
+                "lr": '$lr',
+                "alpha_lr":'$alpha_lr'},
+            "config":'$model_config'
         }'
 
 python src/lm/evaluate_roberta.py --config_dict "$config"
