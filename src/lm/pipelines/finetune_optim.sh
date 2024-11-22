@@ -2,7 +2,7 @@
 ################################### Adaptive ###################################
 
 model_config='{
-        "max_position_embeddings": 512,
+        "max_position_embeddings": 514,
         "hidden_size": 768,
         "num_attention_heads": 12,
         "num_hidden_layers": 6,
@@ -33,10 +33,9 @@ if [[ ! -d $model_path ]]; then
 fi
 
 dataset=$STORAGE_DIR'/datasets'
-adaptive_path=$STORAGE_DIR'/models/custom_roberta/adaptive_mlm'
 
 config='{"settings": {
-            "model": "'$adaptive_path'",
+            "model": "FacebookAI/roberta-base",
             "save_path": "'$model_path'",
             "tokenizer": "FacebookAI/roberta-base",
             "dataset":"'$dataset'", 
@@ -77,7 +76,7 @@ python src/lm/metrics.py --path $model_path
 
 # dataset=$STORAGE_DIR'/datasets'
 
-# model_config='{"max_position_embeddings": 512,
+# model_config='{"max_position_embeddings": 514,
 #         "hidden_size": 768,
 #         "num_attention_heads": 12,
 #         "num_hidden_layers": 6,
@@ -107,3 +106,52 @@ python src/lm/metrics.py --path $model_path
 
 # python src/lm/metrics.py --path $model_path
 
+################################### Sparse ###################################
+
+# batch_size=44
+# lr=1e-4
+
+# model_config='{
+#         "vocab_size": 32,
+#         "max_position_embeddings": 514,
+#         "hidden_size": 768,
+#         "num_attention_heads": 12,
+#         "num_hidden_layers": 6,
+#         "type_vocab_size": 1,
+#         "attn_mechanism": "sparse"
+#     }'
+
+#     echo Training Sparse LR 1.
+
+# alpha_lr=1e-1
+# exp_name="sparse_ft"
+
+# model_path=$STORAGE_DIR'/models/finetune_roberta/'$exp_name
+# if [[ ! -d $model_path ]]; then
+#   mkdir -p $model_path
+# fi
+# dataset=$STORAGE_DIR'/datasets'
+# config='{
+#             "settings": {
+#                 "model": "FacebookAI/roberta-base",
+#                 "save_path": "'$model_path'",
+#                 "tokenizer": "FacebookAI/roberta-base",
+#                 "dataset":"'$dataset'", 
+#                 "task": "glue", 
+#                 "accelerate": true,
+#                 "logging": true,
+#                 "exp_name": "'$exp_name'",
+#                 "epochs": 10,
+#                 "batch_size":'$batch_size',  
+#                 "lr": '$lr',
+#                 "alpha_lr":'$alpha_lr'},
+#             "config":'$model_config'
+#         }'
+
+# accelerate launch src/lm/finetune_roberta.py --config_dict "$config"
+
+# echo Evaluating Sparse LR 1.
+
+# python src/lm/evaluate_roberta.py --config_dict "$config"
+
+# python src/lm/metrics.py --path $model_path

@@ -235,7 +235,7 @@ class SeqAttention(nn.Module):
 
 
             # trim attention lengths according to the learned span
-            attn_cont = self.mask(attn_cont)
+            attn_cont = self.mask(attn)
 
             out = torch.matmul(attn_cont, value)  # B x M x H
 

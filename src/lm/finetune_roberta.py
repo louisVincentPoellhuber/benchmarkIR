@@ -23,7 +23,7 @@ print(STORAGE_DIR)
 
 def parse_arguments():
     argparser = argparse.ArgumentParser("Evaluating Roberta")
-    argparser.add_argument('--config', default="roberta_glue") # default, adaptive, sparse
+    argparser.add_argument('--config', default="test") # default, adaptive, sparse
     argparser.add_argument('--config_dict', default={}) 
     args = argparser.parse_args()
 
@@ -91,7 +91,8 @@ def main(arg_dict):
 
     accelerator = Accelerator(log_with="comet_ml", kwargs_handlers=[DistributedDataParallelKwargs(find_unused_parameters=True)])
     device = accelerator.device 
-    
+    #device="cpu"
+
     task_num_labels = {
         "cola": 2,
         "mnli": 3,
@@ -104,8 +105,6 @@ def main(arg_dict):
     }
     
     tokenizer = get_tokenizer(tokenizer_path)
-    print(f"\n\n\n\n\n\n\n\n\n Vocab size: {tokenizer.vocab_size} \n\n\n\n\n\n\n\n\n")
-    
         
     print("Initializing training. ")
     config = CustomRobertaConfig.from_dict(config_dict)
@@ -114,7 +113,6 @@ def main(arg_dict):
 
     model = RobertaForSequenceClassification(config=config).from_pretrained(model_path, config=config, ignore_mismatched_sizes=True)
     model.to(device)
-    print(model.config.num_labels)
 
     # For sparse attention 
     if config.attn_mechanism == "sparse":
@@ -165,6 +163,7 @@ def main(arg_dict):
     model, optim, dataloader, scheduler = accelerator.prepare(
         model, optim, train_dataloader, scheduler
     )
+    #dataloader = train_dataloader
 
     print("Beginning training process. ")
     # WandB stuff
@@ -238,8 +237,8 @@ if __name__ == "__main__":
             original_arg_dict["settings"][key] = original_arg_dict["settings"][key].replace("STORAGE_DIR", STORAGE_DIR)
 
     if original_arg_dict["settings"]["task"]=="glue":
-        tasks = ["cola", "mnli", "mrpc", "qnli", "qqp", "rte", "sst2", "wnli"]
-        
+        #tasks = ["cola", "mnli", "mrpc", "qnli", "qqp", "rte", "sst2", "wnli"]
+        tasks = ["sst2"]
 
         for task in tasks:
             print(f"============ Processing {task} ============")
@@ -252,7 +251,8 @@ if __name__ == "__main__":
             except:
                 arg_dict["settings"]["model"] = os.path.join(arg_dict["settings"]["model"], "roberta_"+task)
 
-                
+            if not os.path.exists(arg_dict["settings"]["save_path"]):
+                os.mkdir(arg_dict["settings"]["save_path"])
 
             arg_dict["settings"]["task"] = task
             

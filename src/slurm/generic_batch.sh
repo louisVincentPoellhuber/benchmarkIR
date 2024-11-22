@@ -2,8 +2,8 @@
 
 #SBATCH --partition=rali
 #SBATCH --cpus-per-task=2
-#SBATCH --gres=gpu:rtx_a5000:4
-#SBATCH --nodelist=octal30
+#SBATCH --gres=gpu:ls40:4
+#SBATCH --nodelist=octal40
 
 
 STORAGE_DIR=/Tmp/lvpoellhuber
@@ -14,6 +14,8 @@ echo $STORAGE_DIR
 source $STORAGE_DIR/bmir-env/bin/activate
 
 export STORAGE_DIR=$STORAGE_DIR
+export COMET_API_KEY=TzEzoqltg1eu3XaFzpKHYuQaD
+
 
 cd Documents/Masters/benchmarkIR
 

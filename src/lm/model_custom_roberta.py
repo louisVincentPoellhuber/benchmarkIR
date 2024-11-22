@@ -297,7 +297,7 @@ class RobertaSparseSelfAttention(nn.Module):
         self.attention_head_size = int(config.hidden_size / config.num_attention_heads)
         self.all_head_size = self.num_attention_heads * self.attention_head_size
 
-        self.alpha = nn.Parameter(torch.rand(self.num_attention_heads) + 1) # Random values between 1 and 2
+        self.alpha = nn.Parameter(torch.rand(self.num_attention_heads)) # Random values between 1 and 2
         #self.alpha.register_hook(scale_gradients)
 
         self.query = nn.Linear(config.hidden_size, self.all_head_size)
