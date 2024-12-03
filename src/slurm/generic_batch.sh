@@ -2,9 +2,8 @@
 
 #SBATCH --partition=rali
 #SBATCH --cpus-per-task=2
-#SBATCH --gres=gpu:ls40:4
-#SBATCH --nodelist=octal40
-
+#SBATCH --verbose
+#SBATCH --mem=20G
 
 STORAGE_DIR=/Tmp/lvpoellhuber
 
@@ -20,7 +19,8 @@ export COMET_API_KEY=TzEzoqltg1eu3XaFzpKHYuQaD
 cd Documents/Masters/benchmarkIR
 
 # Change the pipeline or script to the one you wanna run
-bash src/lm/pipelines/finetune_optim.sh     
+#bash src/lm/pipelines/finetune_paramsearch.sh     
+bash src/lm/pipelines/investigate_adaptive.sh     
 
 #python src/lm/preprocessing.py --task glue --overwrite True
 

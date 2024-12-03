@@ -31,22 +31,6 @@ def parse_arguments():
     return args
 
 def main(arg_dict):
-    config_dict = arg_dict["config"]
-    settings = arg_dict["settings"]
-    
-    enable_accelerate = settings["accelerate"]
-    logging = settings["logging"]
-
-    # Main arguments
-    dataset_path = settings["dataset"]
-    model_path = settings["model"]
-    model_save_path = settings["save_path"]
-    tokenizer_path = settings["tokenizer"]
-
-    task = settings["task"]
-
-    accelerator = Accelerator(log_with="comet_ml", kwargs_handlers=[DistributedDataParallelKwargs(find_unused_parameters=True)])
-    device = accelerator.device 
     
     task_num_labels = {
         "cola": 2,
@@ -60,6 +44,23 @@ def main(arg_dict):
         "stsb": 1
     }
     
+    config_dict = arg_dict["config"]
+    settings = arg_dict["settings"]
+    
+    enable_accelerate = settings["accelerate"]
+    logging = settings["logging"]
+
+    # Main arguments
+    dataset_path = settings["dataset"]
+    model_path = settings["model"]
+    model_save_path = settings["save_path"]
+    tokenizer_path = settings["tokenizer"]
+
+    task = settings["task"]
+    num_labels = task_num_labels[task]
+
+    accelerator = Accelerator(log_with="comet_ml", kwargs_handlers=[DistributedDataParallelKwargs(find_unused_parameters=True)])
+    device = accelerator.device 
     metric = load_metric("glue", task, trust_remote_code=True)
     accuracy = load_metric("accuracy", trust_remote_code = True)
     tokenizer = get_tokenizer(tokenizer_path)
@@ -69,7 +70,7 @@ def main(arg_dict):
 
     config = CustomRobertaConfig.from_dict(config_dict)
     config.vocab_size = tokenizer.vocab_size
-    config.num_labels = task_num_labels[task]
+    config.num_labels = num_labels
     print(config.num_labels)
 
     model = RobertaForSequenceClassification(config=config).from_pretrained(model_path, config=config, ignore_mismatched_sizes=True)
@@ -82,6 +83,10 @@ def main(arg_dict):
 
     loop = tqdm(dataloader, leave=True)
     metrics_df = []
+    prediction_distribution = torch.zeros(size=(2, num_labels), device=device)
+    unique_labels = torch.arange(num_labels, device=device)
+    ones = torch.ones(num_labels, device=device)
+
     for i, batch in enumerate(loop): 
         input_ids = batch["input_ids"]#.to(device) # already taken care of by Accelerator
         mask = batch["attention_mask"]#.to(device) # REMOVE COMMENTS IF U REMOVE ACCELERATOR
@@ -91,6 +96,11 @@ def main(arg_dict):
         predictions = torch.argmax(outputs.logits, axis=1)
         metrics = metric.compute(predictions=predictions, references=labels)
 
+        
+        label_counts = torch.cat((labels, unique_labels)).unique(return_counts=True)
+        prediction_distribution[0] += label_counts[1] - ones
+        pred_counts =  torch.cat((predictions, unique_labels)).unique(return_counts=True)
+        prediction_distribution[1] += pred_counts[1] - ones
         
         row = [float(outputs.loss)] + list(metrics.values())
         row_names = ["loss"] + list(metrics.keys())
@@ -104,6 +114,11 @@ def main(arg_dict):
     print(os.path.join(model_save_path, "metrics.csv"))
     metrics_df = pd.DataFrame(metrics_df, columns = row_names)
     metrics_df.to_csv(os.path.join(model_save_path, "metrics.csv"))
+    
+    with open(model_save_path+"prediction_dist.csv", "a") as pred_file:
+        label_row = "labels," + str(prediction_distribution[0].tolist()).strip("[").strip("]") +f",{task}\n"
+        pred_row = settings["exp_name"] + "," + str(prediction_distribution[1].tolist()).strip("[").strip("]") +f",{task}\n"
+        pred_file.writelines([label_row, pred_row])
 
 if __name__ == "__main__":
     args = parse_arguments()
@@ -122,8 +137,8 @@ if __name__ == "__main__":
 
 
     if original_arg_dict["settings"]["task"]=="glue":
-        tasks = ["cola", "mnli", "mrpc", "qnli", "qqp", "rte", "sst2", "wnli"]        
-        #tasks = ["cola"]        
+        #tasks = ["cola", "mnli", "mrpc", "qnli", "qqp", "rte", "sst2", "wnli"]        
+        tasks = ["cola", "mrpc", "qnli", "rte", "sst2", "wnli"]
 
         for task in tasks:
             print(f"============ Processing {task} ============")

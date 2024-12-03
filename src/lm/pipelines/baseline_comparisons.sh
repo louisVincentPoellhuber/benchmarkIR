@@ -17,7 +17,7 @@ fi
 
 dataset=$STORAGE_DIR'/datasets'
 
-model_config='{"max_position_embeddings": 512,
+model_config='{"max_position_embeddings": 514,
         "hidden_size": 768,
         "num_attention_heads": 12,
         "num_hidden_layers": 6,

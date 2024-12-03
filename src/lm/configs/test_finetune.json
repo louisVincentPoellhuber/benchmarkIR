@@ -1,12 +1,12 @@
 {
     "settings": {
         "model": "FacebookAI/roberta-base",
-        "save_path": "STORAGE_DIR/models/custom_roberta/roberta_ft",
+        "save_path": "STORAGE_DIR/models/custom_roberta/adaptive_ft",
         "tokenizer": "FacebookAI/roberta-base",
         "dataset":"STORAGE_DIR/datasets", 
         "task": "glue",
         "accelerate": true, 
-        "logging": false,
+        "logging": true,
         "exp_name": "roberta_ft",
         "epochs": 10,
         "batch_size": 16,  
@@ -23,7 +23,7 @@
         "inner_hidden_size": 1024,
         "dropout": 0,
         "attn_span": 1024,
-        "adapt_span_enabled": true,
+        "adapt_span_enabled": false,
         "adapt_span_loss": 2e-06,
         "adapt_span_ramp": 32,
         "adapt_span_init": 0,

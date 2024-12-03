@@ -12,7 +12,8 @@
         "exp_name": "finetuned",
         "epochs": 1,
         "batch_size": 16,
-        "lr": 1e-4
+        "lr": 1e-4,
+        "alpha_lr": 1e-1
     },
     "roberta_config": {
         "max_position_embeddings": 512,

@@ -31,48 +31,52 @@ def parse_arguments():
 
 def log_metrics(accelerator, model, experiment, step, epoch, num_training_steps, config, loss):
     step = step + epoch * num_training_steps
+
+    
+    if accelerator != None:                
+        if accelerator.is_main_process:
+            model = accelerator.unwrap_model(model)
+        else:
+            experiment = None
+                
     if experiment != None:
         experiment.log_metrics({"loss": loss}, step=step)
         
+        if config.attn_mechanism =="sparse":
+            log_dict = {"loss": loss}
+            for layer_nb, layer in enumerate(model.roberta.encoder.layer):
+                alphas = layer.attention.self.alpha.data
+                names = [f"layer_{layer_nb}/alpha_"+str(i) for i in range(len(alphas))]
+                alpha_dict = dict(zip(names, alphas))
+                log_dict.update(alpha_dict)
+            experiment.log_metrics(log_dict, step=step)
+
+        elif config.attn_mechanism == "adaptive":
+            log_dict = {"loss": loss}
+            for layer_nb, layer in enumerate(model.roberta.encoder.layer):
+                spans = layer.attention.self.adaptive_mask._mask.current_val.data
+                names = [f"layer_{layer_nb}/span_"+str(i) for i in range(len(spans))]
+                span_dict = dict(zip(names, spans))
+                log_dict.update(span_dict)
+                experiment.log_metrics(log_dict, step=step)
+
+def log_gradients(accelerator, model, experiment, step, epoch, num_training_steps):
+    step = step + epoch * num_training_steps
+
+    if experiment != None:  
         if accelerator != None:                
             if accelerator.is_main_process:
-                if config.attn_mechanism =="sparse":
-                    original_model = accelerator.unwrap_model(model)
-                    log_dict = {"loss": loss}
-                    for layer_nb, layer in enumerate(original_model.roberta.encoder.layer):
-                        alphas = layer.attention.self.alpha.data
-                        names = [f"layer_{layer_nb}_alpha_"+str(i) for i in range(len(alphas))]
-                        alpha_dict = dict(zip(names, alphas))
-                        log_dict.update(alpha_dict)
-                    experiment.log_metrics(log_dict, step=step)
+                total_norm = 0
+                for name, param in model.named_parameters():
+                    if param.grad is not None:
+                        param_norm = param.grad.data.norm(2).item()
+                        total_norm += param_norm ** 2
+                        experiment.log_metric(f"grad_norm/{name}", param_norm, step=step)
+                
+                total_norm = total_norm ** 0.5
+                experiment.log_metric("total_grad_norm", total_norm, step=step)
 
-                elif config.attn_mechanism == "adaptive":
-                    original_model = accelerator.unwrap_model(model)
-                    log_dict = {"loss": loss}
-                    for layer_nb, layer in enumerate(original_model.roberta.encoder.layer):
-                        spans = layer.attention.self.seq_attention.mask.current_val.data
-                        names = [f"layer_{layer_nb}_span_"+str(i) for i in range(len(spans))]
-                        span_dict = dict(zip(names, spans))
-                        log_dict.update(span_dict)
-                    experiment.log_metrics(log_dict, step=step)
-        else:
-                if config.attn_mechanism =="sparse":
-                    log_dict = {"loss": loss}
-                    for layer_nb, layer in enumerate(model.roberta.encoder.layer):
-                        alphas = layer.attention.self.alpha.data
-                        names = [f"layer_{layer_nb}_alpha_"+str(i) for i in range(len(alphas))]
-                        alpha_dict = dict(zip(names, alphas))
-                        log_dict.update(alpha_dict)
-                    experiment.log_metrics(log_dict, step=step)
 
-                elif config.attn_mechanism == "adaptive":
-                    log_dict = {"loss": loss}
-                    for layer_nb, layer in enumerate(model.roberta.encoder.layer):
-                        spans = layer.attention.self.seq_attention.mask.current_val.data
-                        names = [f"layer_{layer_nb}_span_"+str(i) for i in range(len(spans))]
-                        span_dict = dict(zip(names, spans))
-                        log_dict.update(span_dict)
-                    experiment.log_metrics(log_dict, step=step)
 
 def main(arg_dict):
     config_dict = arg_dict["config"]
@@ -135,7 +139,7 @@ def main(arg_dict):
 
         other_params = []
         for name, param in model.named_parameters():
-            if not name.endswith('attention.self.seq_attention.adaptive_span._mask.current_val'):
+            if not name.endswith('attention.self.adaptive_mask._mask.current_val'):
                 other_params.append(param)
         optim = AdamW([
                 {'params': other_params, 'lr': settings["lr"]},  # Default learning rate for most parameters
@@ -205,6 +209,7 @@ def main(arg_dict):
             
             if (i%100==0) & logging:
                 log_metrics(accelerator, model, experiment, i, epoch, len(loop), config, loss)
+                log_gradients(accelerator, model, experiment, i, epoch, len(loop))
             
         #unwrapped_model = accelerator.unwrap_model(model)
         #unwrapped_model.save_pretrained(
@@ -238,7 +243,7 @@ if __name__ == "__main__":
 
     if original_arg_dict["settings"]["task"]=="glue":
         #tasks = ["cola", "mnli", "mrpc", "qnli", "qqp", "rte", "sst2", "wnli"]
-        tasks = ["sst2"]
+        tasks = ["cola", "mrpc", "rte", "sst2", "wnli", "qnli"]
 
         for task in tasks:
             print(f"============ Processing {task} ============")
