@@ -1,16 +1,22 @@
+rsync -avz --update --progress  /data/rech/poellhul/models/finetune_roberta/ /Tmp/lvpoellhuber/models/finetune_roberta
+
 batch_size=44
 lr=1e-4
 
-exp_name="roberta_baseline"
-model_path=$STORAGE_DIR'/models/finetune_roberta/'$exp_name
+# Finetuned
+exp_name="roberta_test"
 
-echo Evaluating Roberta Baseline.
+echo Training Roberta Finetuned.
 
+model_path=$STORAGE_DIR'/models/finetune_roberta/roberta/'$exp_name
+echo $model_path
 if [[ ! -d $model_path ]]; then
   mkdir -p $model_path
 fi
 
-config='{"max_position_embeddings": 512,
+dataset=$STORAGE_DIR'/datasets'
+
+model_config='{"max_position_embeddings": 514,
         "hidden_size": 768,
         "num_attention_heads": 12,
         "num_hidden_layers": 6,
@@ -19,20 +25,27 @@ config='{"max_position_embeddings": 512,
         "num_labels": 2}'
 
 
-config_dict='{
-            "settings": {
-                "model": "FacebookAI/roberta-base",
-                "save_path": '$model_path',
-                "tokenizer": "FacebookAI/roberta-base",
-                "dataset":"/part/01/Tmp/lvpoellhuber/datasets", 
-                "task": "glue", 
-                "accelerate": true
-                "logging": false,
-                "exp_name": '$exp_name',
-                "epochs": 1,
-                "batch_size":'$batch_size',  
-                "lr": '$lr'},
-            "config":'$config'
-        }'
-    
-echo $config_dict
+config='{"settings": {
+            "model": "FacebookAI/roberta-base",
+            "save_path": "'$model_path'",
+            "tokenizer": "FacebookAI/roberta-base",
+            "dataset":"'$dataset'", 
+            "task": "glue", 
+            "accelerate": true,
+            "logging": true,
+            "exp_name": "'$exp_name'",
+            "epochs": 10,
+            "batch_size":'$batch_size',  
+            "lr": '$lr'},
+        "config":'$model_config'}'
+
+accelerate launch src/lm/finetune_roberta.py --config_dict "$config"
+
+echo Evaluating.
+
+python src/lm/evaluate_roberta.py --config_dict "$config"
+
+python src/lm/metrics.py --path $model_path --config_dict "$config"
+
+rsync -avz --update --progress /Tmp/lvpoellhuber/models/finetune_roberta/ /data/rech/poellhul/models/finetune_roberta
+scp /data/rech/poellhul/models/finetune_roberta/experiment_df.csv ~/Downloads

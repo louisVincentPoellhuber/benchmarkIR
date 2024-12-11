@@ -85,7 +85,7 @@ if __name__ == "__main__":
         print(f"\n==========================\nDoing task {task}.\n==========================\n")
         #### Download NFCorpus dataset and unzip the dataset
         url = "https://public.ukp.informatik.tu-darmstadt.de/thakur/BEIR/datasets/{}.zip".format(task)
-        out_dir = "/part/01/Tmp/lvpoellhuber/datasets"
+        out_dir = "/part/01/Tmp/lvpoellhuber/datasets" # TODO: make dynamic and update logic
         data_path = util.download_and_unzip(url, out_dir)
 
         corpus, queries, qrels = GenericDataLoader(data_folder=data_path).load(split="test")

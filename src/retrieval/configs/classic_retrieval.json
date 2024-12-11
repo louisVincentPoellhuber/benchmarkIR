@@ -1,6 +1,6 @@
 {
     "settings": {
-        "model": "STORAGE_DIR/models/custom_roberta/dpr_classic",
+        "model": "STORAGE_DIR/models/custom_roberta/dpr/classic_dpr",
         "dataset":"STORAGE_DIR/datasets/hotpotqa/test.pt",
         "task": "nq",
         "batch_size": 16

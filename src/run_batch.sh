@@ -15,9 +15,15 @@ else
     exit 1  # Exit with an error if the computer is not recognized
 fi
 
-echo Run batch. Computer: $1, GPU: $gpu
+echo "
+|
+| Running batch: $2.
+|
+| Computer: $1
+| GPU: $gpu
+|"
 
 
 # Sent to SSH
-ssh poellhul@arcade.iro.umontreal.ca "cd ~/Documents/Masters/benchmarkIR-slurm; sbatch --gres=gpu:"$gpu":4 --nodelist="$1" src/slurm/"$script
+ssh poellhul@arcade.iro.umontreal.ca "cd ~/Documents/Masters/benchmarkIR-slurm; sbatch --gres=gpu:"$gpu":4 --nodelist="$1" src/slurm/"$script" "$2
 

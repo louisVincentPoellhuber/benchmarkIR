@@ -1,5 +1,8 @@
 echo $STORAGE_DIR
 
+rsync -avz --update --progress /data/rech/poellhul/models/finetune_roberta/ /Tmp/lvpoellhuber/models/finetune_roberta
+
+
 ################################### Finetuned Models ###################################
 batch_size=16
 lr=1e-4
@@ -54,9 +57,9 @@ sparse_config='{
         "attn_mechanism": "sparse"
     }'
 
-roberta_model=$STORAGE_DIR'/models/finetune_roberta/roberta_ft'
-adaptive_model=$STORAGE_DIR'/models/finetune_roberta/adaptive_ft/init_0.5'
-sparse_model=$STORAGE_DIR'/models/finetune_roberta/sparse_ft'
+roberta_model=$STORAGE_DIR'/models/finetune_roberta/roberta/roberta_ft'
+adaptive_model=$STORAGE_DIR'/models/finetune_roberta/adaptive/init_0.5'
+sparse_model=$STORAGE_DIR'/models/finetune_roberta/sparse/sparse_ft'
 
 
 config='{"settings": {
@@ -155,3 +158,5 @@ python src/lm/investigate_adaptive.py --config_dict "$config"
 #         "sparse_config":'$sparse_config'}'
 
 # python src/lm/investigate_adaptive.py --config_dict "$config"
+
+rsync -avz --update --progress /Tmp/lvpoellhuber/models/finetune_roberta/ /data/rech/poellhul/models/finetune_roberta

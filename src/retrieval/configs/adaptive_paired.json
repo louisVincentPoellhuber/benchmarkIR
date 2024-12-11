@@ -1,9 +1,9 @@
 {
     "settings": {
-        "q_model": "STORAGE_DIR/models/custom_roberta/adaptive_mlm/roberta_model",
-        "ctx_model": "STORAGE_DIR/models/custom_roberta/adaptive_mlm/roberta_model",
-        "save_path": "STORAGE_DIR/models/custom_roberta/dpr_adaptive_hotpotqa",
-        "tokenizer": "STORAGE_DIR/models/custom_roberta/adaptive_mlm/roberta_model", 
+        "q_model": "STORAGE_DIR/models/custom_roberta/adaptive/adaptive_mlm/roberta_model",
+        "ctx_model": "STORAGE_DIR/models/custom_roberta/adaptive/adaptive_mlm/roberta_model",
+        "save_path": "STORAGE_DIR/models/custom_roberta/dpr/adaptive_dpr",
+        "tokenizer": "STORAGE_DIR/models/custom_roberta/adaptive/adaptive_mlm/roberta_model", 
         "dataset":"STORAGE_DIR/datasets/hotpotqa/train.pt", 
         "accelerate": true,
         "logging": false,

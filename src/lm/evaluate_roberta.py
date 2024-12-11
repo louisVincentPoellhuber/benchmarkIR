@@ -15,6 +15,8 @@ from torch.optim import AdamW
 from datasets import load_dataset, load_metric
 import copy
 
+from metrics import compute_metrics
+
 import dotenv
 dotenv.load_dotenv()
 
@@ -51,8 +53,8 @@ def main(arg_dict):
     logging = settings["logging"]
 
     # Main arguments
-    dataset_path = settings["dataset"]
-    model_path = settings["model"]
+    dataset_path = settings["dataset"] 
+    model_path = settings["save_path"] # THIS IS NOT A MISTAKE. 
     model_save_path = settings["save_path"]
     tokenizer_path = settings["tokenizer"]
 
@@ -73,6 +75,7 @@ def main(arg_dict):
     config.num_labels = num_labels
     print(config.num_labels)
 
+    print(model_path)
     model = RobertaForSequenceClassification(config=config).from_pretrained(model_path, config=config, ignore_mismatched_sizes=True)
     model.to(device)
 
@@ -115,10 +118,18 @@ def main(arg_dict):
     metrics_df = pd.DataFrame(metrics_df, columns = row_names)
     metrics_df.to_csv(os.path.join(model_save_path, "metrics.csv"))
     
-    with open(model_save_path+"prediction_dist.csv", "a") as pred_file:
-        label_row = "labels," + str(prediction_distribution[0].tolist()).strip("[").strip("]") +f",{task}\n"
-        pred_row = settings["exp_name"] + "," + str(prediction_distribution[1].tolist()).strip("[").strip("]") +f",{task}\n"
-        pred_file.writelines([label_row, pred_row])
+    dist_path = os.path.join(os.path.dirname(model_save_path), "prediction_dist.csv")
+    dist_df = pd.DataFrame(prediction_distribution.cpu().numpy()).T
+    dist_df = dist_df[[1, 0]]
+    dist_df.index = [f"{task}_{i}" for i in range(num_labels)]
+    dist_df.columns = ["predictions", "labels"]
+
+    print(dist_df)
+    if os.path.exists(dist_path):
+        total_dist_df = pd.read_csv(dist_path, index_col=0)
+        dist_df = pd.concat([total_dist_df, dist_df])
+    dist_df.to_csv(dist_path)
+
 
 if __name__ == "__main__":
     args = parse_arguments()

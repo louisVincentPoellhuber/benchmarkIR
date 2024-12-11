@@ -46,7 +46,11 @@ class AdaptiveMask(nn.Module):
         nn.Module.__init__(self)
         self._max_size = max_size
         self._ramp_size = ramp_size
-        self.current_val = nn.Parameter(torch.zeros(shape) + init_val, requires_grad=True)
+
+        if init_val=="random":
+            self.current_val = nn.Parameter(torch.rand(shape), requires_grad=True)
+        else:
+            self.current_val = nn.Parameter(torch.zeros(shape) + init_val, requires_grad=True)
         mask_template = torch.linspace(1 - max_size, 0, steps=max_size)
         self.register_buffer('mask_template', mask_template)
 

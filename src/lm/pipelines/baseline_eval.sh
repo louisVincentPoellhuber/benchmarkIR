@@ -1,5 +1,8 @@
 echo $STORAGE_DIR
 
+rsync -avz --update --progress /data/rech/poellhul/models/finetune_roberta/ /Tmp/lvpoellhuber/models/finetune_roberta
+
+
 ################################### RoBERTa Baseline ###################################
 batch_size=44
 lr=1e-4
@@ -8,7 +11,7 @@ exp_name="roberta_baseline"
 
 echo Evaluating Roberta Baseline.
 
-model_path=$STORAGE_DIR'/models/finetune_roberta/'$exp_name
+model_path=$STORAGE_DIR'/models/finetune_roberta/roberta/'$exp_name
 echo $model_path
 if [[ ! -d $model_path ]]; then
   mkdir -p $model_path
@@ -41,7 +44,7 @@ config='{"settings": {
 
 python src/lm/evaluate_roberta.py --config_dict "$config"
 
-python src/lm/metrics.py --path $model_path
+python src/lm/metrics.py --path $model_path --config_dict "$config"
 
 # ################################### Adaptive Baseline ###################################
 batch_size=44
@@ -51,7 +54,7 @@ exp_name="adaptive_baseline"
 
 echo Evaluating Adaptive baseline.
 
-model_path=$STORAGE_DIR'/models/finetune_roberta/'$exp_name
+model_path=$STORAGE_DIR'/models/finetune_roberta/adaptive/'$exp_name
 if [[ ! -d $model_path ]]; then
   mkdir -p $model_path
 fi
@@ -96,7 +99,7 @@ config='{
 
 python src/lm/evaluate_roberta.py --config_dict "$config"
 
-python src/lm/metrics.py --path $model_path
+python src/lm/metrics.py --path $model_path --config_dict "$config"
 
 ################################### Sparse Baseline ###################################
 batch_size=44
@@ -107,7 +110,7 @@ exp_name="sparse_baseline"
 
 echo Evaluating Sparse baseline.
 
-model_path=$STORAGE_DIR'/models/finetune_roberta/'$exp_name
+model_path=$STORAGE_DIR'/models/finetune_roberta/sparse/'$exp_name
 if [[ ! -d $model_path ]]; then
   mkdir -p $model_path
 fi
@@ -144,5 +147,9 @@ config='{
 
 python src/lm/evaluate_roberta.py --config_dict "$config"
 
-python src/lm/metrics.py --path $model_path
+python src/lm/metrics.py --path $model_path --config_dict "$config"
 
+
+rsync -avz --update --progress /Tmp/lvpoellhuber/models/finetune_roberta/ /data/rech/poellhul/models/finetune_roberta
+
+scp /data/rech/poellhul/models/finetune_roberta/experiment_df.csv ~/Downloads

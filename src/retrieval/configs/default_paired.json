@@ -2,7 +2,7 @@
     "settings": {
         "q_model": "STORAGE_DIR/models/backups/roberta_mlm_241019/roberta_model",
         "ctx_model": "STORAGE_DIR/models/backups/roberta_mlm_241019/roberta_model",
-        "save_path": "STORAGE_DIR/models/custom_roberta/dpr",
+        "save_path": "STORAGE_DIR/models/custom_roberta/dpr/roberta_dpr",
         "tokenizer": "STORAGE_DIR/models/backups/roberta_mlm_241019", 
         "dataset":"STORAGE_DIR/datasets/dprqa/train.pt", 
         "accelerate": true,

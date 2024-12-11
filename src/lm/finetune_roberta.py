@@ -45,7 +45,7 @@ def log_metrics(accelerator, model, experiment, step, epoch, num_training_steps,
         if config.attn_mechanism =="sparse":
             log_dict = {"loss": loss}
             for layer_nb, layer in enumerate(model.roberta.encoder.layer):
-                alphas = layer.attention.self.alpha.data
+                alphas = layer.attention.self.true_alpha.data
                 names = [f"layer_{layer_nb}/alpha_"+str(i) for i in range(len(alphas))]
                 alpha_dict = dict(zip(names, alphas))
                 log_dict.update(alpha_dict)
@@ -209,7 +209,7 @@ def main(arg_dict):
             
             if (i%100==0) & logging:
                 log_metrics(accelerator, model, experiment, i, epoch, len(loop), config, loss)
-                log_gradients(accelerator, model, experiment, i, epoch, len(loop))
+                #log_gradients(accelerator, model, experiment, i, epoch, len(loop))
             
         #unwrapped_model = accelerator.unwrap_model(model)
         #unwrapped_model.save_pretrained(

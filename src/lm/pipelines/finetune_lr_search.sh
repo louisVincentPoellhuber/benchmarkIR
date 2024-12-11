@@ -1,3 +1,5 @@
+rsync -avz --update --progress /data/rech/poellhul/models/finetune_roberta/ /Tmp/lvpoellhuber/models/finetune_roberta
+
 
 ################################### Adaptive ###################################
 # Same for all adpative models, for now
@@ -29,7 +31,7 @@ adaptive_lr=5e-4 # only variable that changes for this particular tuning
 exp_name="adaptive_lr_5e4"
 
 
-model_path=$STORAGE_DIR'/models/finetune_roberta/'$exp_name
+model_path=$STORAGE_DIR'/models/finetune_roberta/adaptive/'$exp_name
 if [[ ! -d $model_path ]]; then
   mkdir -p $model_path
 fi
@@ -60,7 +62,7 @@ echo Evaluating Adaptive 5e-4.
 
 python src/lm/evaluate_roberta.py --config_dict "$config"
 
-python src/lm/metrics.py --path $model_path
+python src/lm/metrics.py --path $model_path --config_dict "$config"
 
 
 echo Training Adaptive LR 1e-3.
@@ -68,7 +70,7 @@ adaptive_lr=1e-3
 
 exp_name="adaptive_lr_1e3"
 
-model_path=$STORAGE_DIR'/models/finetune_roberta/'$exp_name
+model_path=$STORAGE_DIR'/models/finetune_roberta/adaptive/'$exp_name
 if [[ ! -d $model_path ]]; then
   mkdir -p $model_path
 fi
@@ -96,7 +98,7 @@ echo Evaluating Adaptive LR 1e-3.
 
 python src/lm/evaluate_roberta.py --config_dict "$config"
 
-python src/lm/metrics.py --path $model_path
+python src/lm/metrics.py --path $model_path --config_dict "$config"
 
 
 echo Training Adaptive LR 1e-2.
@@ -104,7 +106,7 @@ echo Training Adaptive LR 1e-2.
 adaptive_lr=1e-2
 exp_name="adaptive_lr_1e2"
 
-model_path=$STORAGE_DIR'/models/finetune_roberta/'$exp_name
+model_path=$STORAGE_DIR'/models/finetune_roberta/adaptive/'$exp_name
 if [[ ! -d $model_path ]]; then
   mkdir -p $model_path
 fi
@@ -132,7 +134,7 @@ echo Evaluating Adaptive 1e-2.
 
 python src/lm/evaluate_roberta.py --config_dict "$config"
 
-python src/lm/metrics.py --path $model_path
+python src/lm/metrics.py --path $model_path --config_dict "$config"
 
 
 
@@ -157,7 +159,7 @@ echo Training Sparse LR 1.
 alpha_lr=1
 exp_name="sparse_lr_1"
 
-model_path=$STORAGE_DIR'/models/finetune_roberta/'$exp_name
+model_path=$STORAGE_DIR'/models/finetune_roberta/sparse/'$exp_name
 if [[ ! -d $model_path ]]; then
   mkdir -p $model_path
 fi
@@ -185,7 +187,7 @@ echo Evaluating Sparse LR 1.
 
 python src/lm/evaluate_roberta.py --config_dict "$config"
 
-python src/lm/metrics.py --path $model_path
+python src/lm/metrics.py --path $model_path --config_dict "$config"
 
 
 echo Training Sparse LR 2.
@@ -193,7 +195,7 @@ echo Training Sparse LR 2.
 alpha_lr=2
 exp_name="sparse_lr_2"
 
-model_path=$STORAGE_DIR'/models/finetune_roberta/'$exp_name
+model_path=$STORAGE_DIR'/models/finetune_roberta/sparse/'$exp_name
 if [[ ! -d $model_path ]]; then
   mkdir -p $model_path
 fi
@@ -221,7 +223,7 @@ echo Evaluating Sparse LR 2.
 
 python src/lm/evaluate_roberta.py --config_dict "$config"
 
-python src/lm/metrics.py --path $model_path
+python src/lm/metrics.py --path $model_path --config_dict "$config"
 
 
 
@@ -230,7 +232,7 @@ echo Training Sparse LR 5.
 alpha_lr=5
 exp_name="sparse_lr_5"
 
-model_path=$STORAGE_DIR'/models/finetune_roberta/'$exp_name
+model_path=$STORAGE_DIR'/models/finetune_roberta/sparse/'$exp_name
 if [[ ! -d $model_path ]]; then
   mkdir -p $model_path
 fi
@@ -258,7 +260,7 @@ echo Evaluating Sparse LR 5.
 
 python src/lm/evaluate_roberta.py --config_dict "$config"
 
-python src/lm/metrics.py --path $model_path
+python src/lm/metrics.py --path $model_path --config_dict "$config"
 
 
 
@@ -267,7 +269,7 @@ echo Training Sparse LR 15.
 alpha_lr=15
 exp_name="sparse_lr_15"
 
-model_path=$STORAGE_DIR'/models/finetune_roberta/'$exp_name
+model_path=$STORAGE_DIR'/models/finetune_roberta/sparse/'$exp_name
 if [[ ! -d $model_path ]]; then
   mkdir -p $model_path
 fi
@@ -295,4 +297,9 @@ echo Evaluating Sparse LR 15.
 
 python src/lm/evaluate_roberta.py --config_dict "$config"
 
-python src/lm/metrics.py --path $model_path
+python src/lm/metrics.py --path $model_path --config_dict "$config"
+
+
+rsync -avz --update --progress /Tmp/lvpoellhuber/models/finetune_roberta/ /data/rech/poellhul/models/finetune_roberta
+
+scp /data/rech/poellhul/models/finetune_roberta/experiment_df.csv ~/Downloads

@@ -298,7 +298,7 @@ class RobertaSparseSelfAttention(nn.Module):
         self.all_head_size = self.num_attention_heads * self.attention_head_size
 
         self.alpha = nn.Parameter(torch.rand(self.num_attention_heads)) # Random values between 1 and 2
-        #self.alpha.register_hook(scale_gradients)
+        self.true_alpha = torch.clone(self.alpha).detach()
 
         self.query = nn.Linear(config.hidden_size, self.all_head_size)
         self.key = nn.Linear(config.hidden_size, self.all_head_size)
@@ -397,7 +397,8 @@ class RobertaSparseSelfAttention(nn.Module):
             # Apply the attention mask is (precomputed for all layers in RobertaModel forward() function)
             attention_scores = attention_scores + attention_mask
 
-        alpha = 1+ torch.sigmoid(self.alpha)
+        alpha = 1 + torch.sigmoid(self.alpha)
+        self.true_alpha = torch.clone(alpha).detach()
         alpha = alpha.view(1, 12, 1, 1)
 
         # Normalize the attention scores to probabilities.

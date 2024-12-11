@@ -39,7 +39,7 @@ def parse_arguments():
     argparser = argparse.ArgumentParser("masked language modeling")
     argparser.add_argument('--task', default="glue") # wikipedia, glue, mlm
     argparser.add_argument('--datapath', default=DATASETS_PATH) 
-    argparser.add_argument('--tokenizer_path', default=STORAGE_DIR+"/models/custom_roberta/roberta_mlm")
+    argparser.add_argument('--tokenizer_path', default=STORAGE_DIR+"/models/custom_roberta/backups/roberta_mlm_241019")
     argparser.add_argument('--train_tokenizer', default=False) # wikipedia
     argparser.add_argument('--overwrite', default=True) # wikipedia
 
