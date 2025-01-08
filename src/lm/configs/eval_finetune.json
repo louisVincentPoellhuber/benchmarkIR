@@ -1,13 +1,13 @@
 {
     "settings": {
         "model": "FacebookAI/roberta-base",
-        "save_path": "STORAGE_DIR/models/finetune_roberta/adaptive/adaptive_test",
+        "save_path": "STORAGE_DIR/models/finetune_roberta/adaptive/init_0.5",
         "tokenizer": "FacebookAI/roberta-base",
-        "dataset":"STORAGE_DIR/datasets/qnli/qnli_train.pt", 
-        "task": "qnli",
+        "dataset":"STORAGE_DIR/datasets", 
+        "task": "glue",
         "accelerate": true, 
         "logging": false,
-        "exp_name": "test_before-softmax",
+        "exp_name": "test_ft",
         "epochs": 10,
         "batch_size": 16,  
         "lr": 1e-4, 
@@ -27,7 +27,7 @@
         "adapt_span_enabled": true,
         "adapt_span_loss": 2e-06, 
         "adapt_span_ramp": 32,
-        "adapt_span_init": 4.69,
+        "adapt_span_init": 0,
         "adapt_span_cache": true
     }
 }

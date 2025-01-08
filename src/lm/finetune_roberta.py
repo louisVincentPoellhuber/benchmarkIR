@@ -15,6 +15,8 @@ from torch.optim import AdamW
 from datasets import load_dataset, load_metric
 import copy
 
+from adagrad_with_grad_clip import AdagradWithGradClip
+
 import dotenv
 dotenv.load_dotenv()
 
@@ -29,7 +31,7 @@ def parse_arguments():
 
     return args
 
-def log_metrics(accelerator, model, experiment, step, epoch, num_training_steps, config, loss):
+def log_metrics(accelerator, model, experiment, step, epoch, num_training_steps, config, loss, print_metrics=False):
     step = step + epoch * num_training_steps
 
     
@@ -48,17 +50,23 @@ def log_metrics(accelerator, model, experiment, step, epoch, num_training_steps,
                 alphas = layer.attention.self.true_alpha.data
                 names = [f"layer_{layer_nb}/alpha_"+str(i) for i in range(len(alphas))]
                 alpha_dict = dict(zip(names, alphas))
+                if print_metrics:  print(f"Layer {layer_nb}: {alpha_dict}")
+
                 log_dict.update(alpha_dict)
             experiment.log_metrics(log_dict, step=step)
 
         elif config.attn_mechanism == "adaptive":
             log_dict = {"loss": loss}
             for layer_nb, layer in enumerate(model.roberta.encoder.layer):
-                spans = layer.attention.self.adaptive_mask._mask.current_val.data
+                spans = layer.attention.self.adaptive_mask._mask.attn_span.data
                 names = [f"layer_{layer_nb}/span_"+str(i) for i in range(len(spans))]
                 span_dict = dict(zip(names, spans))
                 log_dict.update(span_dict)
+
+                if print_metrics:  print(f"Layer {layer_nb}: {span_dict}")
+
                 experiment.log_metrics(log_dict, step=step)
+
 
 def log_gradients(accelerator, model, experiment, step, epoch, num_training_steps):
     step = step + epoch * num_training_steps
@@ -132,19 +140,22 @@ def main(arg_dict):
                 {'params': other_params, 'lr': settings["lr"]},  # Default learning rate for most parameters
                 {'params': alpha_params, 'lr': settings["alpha_lr"]}          # Higher learning rate for alpha
             ], betas=(0.9, 0.98), eps=1e-6)
-    elif (config.attn_mechanism == "adaptive") & ("adaptive_lr" in settings.keys()):
-        adaptive_params = []
-        for i in range(len(model.roberta.encoder.layer)):
-            adaptive_params.append(model.roberta.encoder.layer[i].attention.self.alpha)
+    elif config.attn_mechanism == "adaptive":
+        if "adaptive_lr" in settings.keys():
+            adaptive_params = []
+            for i in range(len(model.roberta.encoder.layer)):
+                adaptive_params.append(model.roberta.encoder.layer[i].attention.self.alpha)
 
-        other_params = []
-        for name, param in model.named_parameters():
-            if not name.endswith('attention.self.adaptive_mask._mask.current_val'):
-                other_params.append(param)
-        optim = AdamW([
-                {'params': other_params, 'lr': settings["lr"]},  # Default learning rate for most parameters
-                {'params': adaptive_params, 'lr': settings["adaptive_lr"]}          # Higher learning rate for alpha
-            ], betas=(0.9, 0.98), eps=1e-6)
+            other_params = []
+            for name, param in model.named_parameters():
+                if not name.endswith('attention.self.adaptive_mask._mask.current_val'):
+                    other_params.append(param)
+            optim = AdamW([
+                    {'params': other_params, 'lr': settings["lr"]},  # Default learning rate for most parameters
+                    {'params': adaptive_params, 'lr': settings["adaptive_lr"]}          # Higher learning rate for alpha
+                ], betas=(0.9, 0.98), eps=1e-6)
+        else:
+            optim = AdagradWithGradClip(params = model.parameters(), grad_clip=0.03, lr=0.07)
     else:
         optim = AdamW(model.parameters(), lr=settings["lr"]) # typical range is 1e-6 to 1e-4
     
@@ -153,11 +164,13 @@ def main(arg_dict):
     # Number of training epochs and warmup steps
     epochs = settings["epochs"]
     num_training_steps = epochs * len(train_dataloader)
-    num_warmup_steps = int(0.06 * num_training_steps)
+
+    num_warmup_steps = int(0.06 * num_training_steps) if "warmup_steps" not in settings.keys() else settings["warmup_steps"]
+    optim_strat = "linear" if "optim_strat" not in settings.keys() else settings["optim_strat"]
 
     # Initialize the scheduler
     scheduler = get_scheduler(
-        "linear", 
+        optim_strat, 
         optimizer=optim, 
         num_warmup_steps=num_warmup_steps, 
         num_training_steps=num_training_steps
@@ -217,6 +230,10 @@ def main(arg_dict):
         #    is_main_process=accelerator.is_main_process,
         #    save_function=accelerator.save,
         #)
+    
+        if logging:
+            log_metrics(accelerator, model, experiment, i, epoch, len(loop), config, loss, print_metrics=True)
+
 
     print("Training done. Saving model. ")
     accelerator.end_training()

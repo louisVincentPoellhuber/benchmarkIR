@@ -3,7 +3,7 @@ rsync -avz --update --progress /data/rech/poellhul/models/finetune_roberta/ /Tmp
 
 ################################### Adaptive ###################################
 dataset=$STORAGE_DIR'/datasets'
-batch_size=44
+batch_size=32
 lr=1e-4
 
 # exp_name="added_loss" 
@@ -253,53 +253,53 @@ lr=1e-4
 # python src/lm/metrics.py --path $model_path --config_dict "$config"
 
 
-# echo Adaptive: Init @ 0.5. 
+echo Adaptive: Init @ 0.5. 
 
-# exp_name="init_0.5" 
+exp_name="init_0.5" 
 
-# model_path=$STORAGE_DIR'/models/finetune_roberta/adaptive/'$exp_name
-# if [[ ! -d $model_path ]]; then
-#   mkdir -p $model_path
-# fi
+model_path=$STORAGE_DIR'/models/finetune_roberta/adaptive/'$exp_name
+if [[ ! -d $model_path ]]; then
+  mkdir -p $model_path
+fi
 
 
-# model_config='{
-#         "max_position_embeddings": 514,
-#         "hidden_size": 768,
-#         "num_attention_heads": 12,
-#         "num_hidden_layers": 6,
-#         "type_vocab_size": 1,
-#         "attn_mechanism": "adaptive",
-#         "num_labels":4,
-#         "attn_span": 1024,
-#         "adapt_span_enabled": true,
-#         "adapt_span_loss": 2e-06, 
-#         "adapt_span_ramp": 32,
-#         "adapt_span_init": 0.5,
-#         "adapt_span_cache": true
-#     }'
+model_config='{
+        "max_position_embeddings": 514,
+        "hidden_size": 768,
+        "num_attention_heads": 12,
+        "num_hidden_layers": 6,
+        "type_vocab_size": 1,
+        "attn_mechanism": "adaptive",
+        "num_labels":4,
+        "attn_span": 1024,
+        "adapt_span_enabled": true,
+        "adapt_span_loss": 2e-06, 
+        "adapt_span_ramp": 32,
+        "adapt_span_init": 0.5,
+        "adapt_span_cache": true
+    }'
 
-#   config='{"settings": {
-#           "model": "FacebookAI/roberta-base",
-#           "save_path": "'$model_path'",
-#           "tokenizer": "FacebookAI/roberta-base",
-#           "dataset":"'$dataset'", 
-#           "task": "glue", 
-#           "accelerate": true,
-#           "logging": true,
-#           "exp_name": "'$exp_name'",
-#           "epochs": 10,
-#           "batch_size":'$batch_size',  
-#           "lr": '$lr'},
-#       "config":'$model_config'}'
+  config='{"settings": {
+          "model": "FacebookAI/roberta-base",
+          "save_path": "'$model_path'",
+          "tokenizer": "FacebookAI/roberta-base",
+          "dataset":"'$dataset'", 
+          "task": "glue", 
+          "accelerate": true,
+          "logging": true,
+          "exp_name": "'$exp_name'",
+          "epochs": 10,
+          "batch_size":'$batch_size',  
+          "lr": '$lr'},
+      "config":'$model_config'}'
 
-# # accelerate launch src/lm/finetune_roberta.py --config_dict "$config"
+accelerate launch src/lm/finetune_roberta.py --config_dict "$config"
 
-# echo Evaluating.
+echo Evaluating.
 
-# python src/lm/evaluate_roberta.py --config_dict "$config"
+python src/lm/evaluate_roberta.py --config_dict "$config"
 
-# python src/lm/metrics.py --path $model_path --config_dict "$config"
+python src/lm/metrics.py --path $model_path --config_dict "$config"
 
 
 
@@ -992,6 +992,59 @@ lr=1e-4
 #           "lr": '$lr'},
 #       "config":'$model_config'}'
 
+# # accelerate launch src/lm/finetune_roberta.py --config_dict "$config"
+
+# echo Evaluating.
+
+# python src/lm/evaluate_roberta.py --config_dict "$config"
+
+# python src/lm/metrics.py --path $model_path --config_dict "$config"
+
+
+
+# echo Adaptive: Article training strategy. 
+
+# exp_name="adaptive_article_trainstrat" 
+
+# model_path=$STORAGE_DIR'/models/finetune_roberta/adaptive/'$exp_name
+# if [[ ! -d $model_path ]]; then
+#   mkdir -p $model_path
+# fi
+
+
+# model_config='{
+#         "max_position_embeddings": 514,
+#         "hidden_size": 768,
+#         "num_attention_heads": 12,
+#         "num_hidden_layers": 6,
+#         "type_vocab_size": 1,
+#         "attn_mechanism": "adaptive",
+#         "num_labels":4,
+#         "attn_span": 1024,
+#         "adapt_span_enabled": true,
+#         "adapt_span_loss": 2e-06, 
+#         "adapt_span_ramp": 32,
+#         "adapt_span_init": 0,
+#         "adapt_span_cache": true
+#     }'
+
+#   config='{"settings": {
+#           "model": "FacebookAI/roberta-base",
+#           "save_path": "'$model_path'",
+#           "tokenizer": "FacebookAI/roberta-base",
+#           "dataset":"'$dataset'", 
+#           "task": "glue", 
+#           "accelerate": true,
+#           "logging": true,
+#           "exp_name": "'$exp_name'",
+#           "epochs": 10,
+#           "batch_size":'$batch_size',  
+#           "lr": '$lr', 
+#           "optim_strat": "constant_with_warmup", 
+#           "warmup_steps": 32000
+#           },
+#       "config":'$model_config'}'
+
 # accelerate launch src/lm/finetune_roberta.py --config_dict "$config"
 
 # echo Evaluating.
@@ -1001,250 +1054,355 @@ lr=1e-4
 # python src/lm/metrics.py --path $model_path --config_dict "$config"
 
 
+# echo Adaptive: Init @ 0.5: speed test.
+
+# exp_name="init_0.5_speedtest" 
+# dataset=$STORAGE_DIR'/datasets/qnli/qnli_train.pt'
+
+# model_path=$STORAGE_DIR'/models/finetune_roberta/adaptive/'$exp_name
+# if [[ ! -d $model_path ]]; then
+#   mkdir -p $model_path
+# fi
+
+
+# model_config='{
+#         "max_position_embeddings": 514,
+#         "hidden_size": 768,
+#         "num_attention_heads": 12,
+#         "num_hidden_layers": 6,
+#         "type_vocab_size": 1,
+#         "attn_mechanism": "adaptive",
+#         "num_labels":4,
+#         "attn_span": 1024,
+#         "adapt_span_enabled": true,
+#         "adapt_span_loss": 2e-06, 
+#         "adapt_span_ramp": 32,
+#         "adapt_span_init": 0.5,
+#         "adapt_span_cache": true
+#     }'
+
+#   config='{"settings": {
+#           "model": "FacebookAI/roberta-base",
+#           "save_path": "'$model_path'",
+#           "tokenizer": "FacebookAI/roberta-base",
+#           "dataset":"'$dataset'", 
+#           "task": "qnli", 
+#           "accelerate": true,
+#           "logging": true,
+#           "exp_name": "'$exp_name'",
+#           "epochs": 10,
+#           "batch_size":'$batch_size',  
+#           "lr": '$lr'},
+#       "config":'$model_config'}'
+
+# accelerate launch src/lm/finetune_roberta.py --config_dict "$config"
+
+echo Evaluating.
+
+python src/lm/evaluate_roberta.py --config_dict "$config"
+
+python src/lm/metrics.py --path $model_path --config_dict "$config"
+
+
+
+
 ################################### Sparse 1 ###################################
 
 
 #batch_size=44
 #lr=1e-4
-alpha_lr=1e-1
+# alpha_lr=1e-1
 
-model_config='{
-        "vocab_size": 32,
-        "max_position_embeddings": 514,
-        "hidden_size": 768,
-        "num_attention_heads": 12,
-        "num_hidden_layers": 6,
-        "type_vocab_size": 1,
-        "attn_mechanism": "sparse"
-    }'
+# model_config='{
+#         "vocab_size": 32,
+#         "max_position_embeddings": 514,
+#         "hidden_size": 768,
+#         "num_attention_heads": 12,
+#         "num_hidden_layers": 6,
+#         "type_vocab_size": 1,
+#         "attn_mechanism": "sparse"
+#     }'
 
-echo Training Sparse 1e-1. 
+# echo Training Sparse 1e-1. 
 
-exp_name="sparse_1e-1"
+# exp_name="sparse_1e-1"
 
-model_path=$STORAGE_DIR'/models/finetune_roberta/sparse/'$exp_name
-if [[ ! -d $model_path ]]; then
-  mkdir -p $model_path
-fi
-dataset=$STORAGE_DIR'/datasets'
-config='{
-            "settings": {
-                "model": "FacebookAI/roberta-base",
-                "save_path": "'$model_path'",
-                "tokenizer": "FacebookAI/roberta-base",
-                "dataset":"'$dataset'", 
-                "task": "glue", 
-                "accelerate": true,
-                "logging": true,
-                "exp_name": "'$exp_name'",
-                "epochs": 10,
-                "batch_size":'$batch_size',  
-                "lr": '$lr',
-                "alpha_lr":'$alpha_lr'},
-            "config":'$model_config'
-        }'
+# model_path=$STORAGE_DIR'/models/finetune_roberta/sparse/'$exp_name
+# if [[ ! -d $model_path ]]; then
+#   mkdir -p $model_path
+# fi
+# dataset=$STORAGE_DIR'/datasets/qnli/qnli_train.pt'
+# config='{
+#             "settings": {
+#                 "model": "FacebookAI/roberta-base",
+#                 "save_path": "'$model_path'",
+#                 "tokenizer": "FacebookAI/roberta-base",
+#                 "dataset":"'$dataset'", 
+#                 "task": "qnli", 
+#                 "accelerate": true,
+#                 "logging": true,
+#                 "exp_name": "'$exp_name'",
+#                 "epochs": 10,
+#                 "batch_size":'$batch_size',  
+#                 "lr": '$lr',
+#                 "alpha_lr":'$alpha_lr', 
+#                 "optimizer": "adam"
+#                 },
+#             "config":'$model_config'
+#         }'
 
-accelerate launch src/lm/finetune_roberta.py --config_dict "$config"
+# # accelerate launch src/lm/finetune_roberta.py --config_dict "$config"
 
-echo Evaluating.
+# echo Evaluating.
 
-python src/lm/evaluate_roberta.py --config_dict "$config"
+# python src/lm/evaluate_roberta.py --config_dict "$config"
 
-python src/lm/metrics.py --path $model_path --config_dict "$config"
-
-
-
-echo Training Sparse LR 2e-1. 
-
-alpha_lr=2e-1
-
-model_config='{
-        "vocab_size": 32,
-        "max_position_embeddings": 514,
-        "hidden_size": 768,
-        "num_attention_heads": 12,
-        "num_hidden_layers": 6,
-        "type_vocab_size": 1,
-        "attn_mechanism": "sparse"
-    }'
-
-exp_name="sparse_2e-1"
-
-model_path=$STORAGE_DIR'/models/finetune_roberta/sparse/'$exp_name
-if [[ ! -d $model_path ]]; then
-  mkdir -p $model_path
-fi
-dataset=$STORAGE_DIR'/datasets'
-config='{
-            "settings": {
-                "model": "FacebookAI/roberta-base",
-                "save_path": "'$model_path'",
-                "tokenizer": "FacebookAI/roberta-base",
-                "dataset":"'$dataset'", 
-                "task": "glue", 
-                "accelerate": true,
-                "logging": true,
-                "exp_name": "'$exp_name'",
-                "epochs": 10,
-                "batch_size":'$batch_size',  
-                "lr": '$lr',
-                "alpha_lr":'$alpha_lr'},
-            "config":'$model_config'
-        }'
-
-accelerate launch src/lm/finetune_roberta.py --config_dict "$config"
-
-echo Evaluating.
-
-python src/lm/evaluate_roberta.py --config_dict "$config"
-
-python src/lm/metrics.py --path $model_path --config_dict "$config"
+# python src/lm/metrics.py --path $model_path --config_dict "$config"
 
 
 
-echo Training Sparse LR 5e-1. 
-alpha_lr=5e-1
+# echo Training Sparse LR 2e-1. 
 
-model_config='{
-        "vocab_size": 32,
-        "max_position_embeddings": 514,
-        "hidden_size": 768,
-        "num_attention_heads": 12,
-        "num_hidden_layers": 6,
-        "type_vocab_size": 1,
-        "attn_mechanism": "sparse"
-    }'
+# alpha_lr=2e-1
 
+# model_config='{
+#         "vocab_size": 32,
+#         "max_position_embeddings": 514,
+#         "hidden_size": 768,
+#         "num_attention_heads": 12,
+#         "num_hidden_layers": 6,
+#         "type_vocab_size": 1,
+#         "attn_mechanism": "sparse"
+#     }'
 
-exp_name="sparse_5e-1"
+# exp_name="sparse_2e-1"
 
-model_path=$STORAGE_DIR'/models/finetune_roberta/sparse/'$exp_name
-if [[ ! -d $model_path ]]; then
-  mkdir -p $model_path
-fi
+# model_path=$STORAGE_DIR'/models/finetune_roberta/sparse/'$exp_name
+# if [[ ! -d $model_path ]]; then
+#   mkdir -p $model_path
+# fi
+# dataset=$STORAGE_DIR'/datasets'
+# config='{
+#             "settings": {
+#                 "model": "FacebookAI/roberta-base",
+#                 "save_path": "'$model_path'",
+#                 "tokenizer": "FacebookAI/roberta-base",
+#                 "dataset":"'$dataset'", 
+#                 "task": "glue", 
+#                 "accelerate": true,
+#                 "logging": true,
+#                 "exp_name": "'$exp_name'",
+#                 "epochs": 10,
+#                 "batch_size":'$batch_size',  
+#                 "lr": '$lr',
+#                 "alpha_lr":'$alpha_lr'},
+#             "config":'$model_config'
+#         }'
 
-dataset=$STORAGE_DIR'/datasets'
-config='{
-            "settings": {
-                "model": "FacebookAI/roberta-base",
-                "save_path": "'$model_path'",
-                "tokenizer": "FacebookAI/roberta-base",
-                "dataset":"'$dataset'", 
-                "task": "glue", 
-                "accelerate": true,
-                "logging": true,
-                "exp_name": "'$exp_name'",
-                "epochs": 10,
-                "batch_size":'$batch_size',  
-                "lr": '$lr',
-                "alpha_lr":'$alpha_lr'},
-            "config":'$model_config'
-        }'
+# accelerate launch src/lm/finetune_roberta.py --config_dict "$config"
 
-accelerate launch src/lm/finetune_roberta.py --config_dict "$config"
+# echo Evaluating.
 
-echo Evaluating.
+# python src/lm/evaluate_roberta.py --config_dict "$config"
 
-python src/lm/evaluate_roberta.py --config_dict "$config"
-
-python src/lm/metrics.py --path $model_path --config_dict "$config"
-
-
-echo Training Sparse LR 5e-2. 
-alpha_lr=5e-2
-
-model_config='{
-        "vocab_size": 32,
-        "max_position_embeddings": 514,
-        "hidden_size": 768,
-        "num_attention_heads": 12,
-        "num_hidden_layers": 6,
-        "type_vocab_size": 1,
-        "attn_mechanism": "sparse"
-    }'
-
-
-exp_name="sparse_5e-2"
-
-model_path=$STORAGE_DIR'/models/finetune_roberta/sparse/'$exp_name
-if [[ ! -d $model_path ]]; then
-  mkdir -p $model_path
-fi
-
-dataset=$STORAGE_DIR'/datasets'
-config='{
-            "settings": {
-                "model": "FacebookAI/roberta-base",
-                "save_path": "'$model_path'",
-                "tokenizer": "FacebookAI/roberta-base",
-                "dataset":"'$dataset'", 
-                "task": "glue", 
-                "accelerate": true,
-                "logging": true,
-                "exp_name": "'$exp_name'",
-                "epochs": 10,
-                "batch_size":'$batch_size',  
-                "lr": '$lr',
-                "alpha_lr":'$alpha_lr'},
-            "config":'$model_config'
-        }'
-
-accelerate launch src/lm/finetune_roberta.py --config_dict "$config"
-
-echo Evaluating.
-
-python src/lm/evaluate_roberta.py --config_dict "$config"
-
-python src/lm/metrics.py --path $model_path --config_dict "$config"
+# python src/lm/metrics.py --path $model_path --config_dict "$config"
 
 
 
-echo Training Sparse LR 2e-2. 
-alpha_lr=2e-2
+# echo Training Sparse LR 5e-1. 
+# alpha_lr=5e-1
 
-model_config='{
-        "vocab_size": 32,
-        "max_position_embeddings": 514,
-        "hidden_size": 768,
-        "num_attention_heads": 12,
-        "num_hidden_layers": 6,
-        "type_vocab_size": 1,
-        "attn_mechanism": "sparse"
-    }'
+# model_config='{
+#         "vocab_size": 32,
+#         "max_position_embeddings": 514,
+#         "hidden_size": 768,
+#         "num_attention_heads": 12,
+#         "num_hidden_layers": 6,
+#         "type_vocab_size": 1,
+#         "attn_mechanism": "sparse"
+#     }'
 
 
-exp_name="sparse_2e-2"
+# exp_name="sparse_5e-1"
 
-model_path=$STORAGE_DIR'/models/finetune_roberta/sparse/'$exp_name
-if [[ ! -d $model_path ]]; then
-  mkdir -p $model_path
-fi
+# model_path=$STORAGE_DIR'/models/finetune_roberta/sparse/'$exp_name
+# if [[ ! -d $model_path ]]; then
+#   mkdir -p $model_path
+# fi
 
-dataset=$STORAGE_DIR'/datasets'
-config='{
-            "settings": {
-                "model": "FacebookAI/roberta-base",
-                "save_path": "'$model_path'",
-                "tokenizer": "FacebookAI/roberta-base",
-                "dataset":"'$dataset'", 
-                "task": "glue", 
-                "accelerate": true,
-                "logging": true,
-                "exp_name": "'$exp_name'",
-                "epochs": 10,
-                "batch_size":'$batch_size',  
-                "lr": '$lr',
-                "alpha_lr":'$alpha_lr'},
-            "config":'$model_config'
-        }'
+# dataset=$STORAGE_DIR'/datasets'
+# config='{
+#             "settings": {
+#                 "model": "FacebookAI/roberta-base",
+#                 "save_path": "'$model_path'",
+#                 "tokenizer": "FacebookAI/roberta-base",
+#                 "dataset":"'$dataset'", 
+#                 "task": "glue", 
+#                 "accelerate": true,
+#                 "logging": true,
+#                 "exp_name": "'$exp_name'",
+#                 "epochs": 10,
+#                 "batch_size":'$batch_size',  
+#                 "lr": '$lr',
+#                 "alpha_lr":'$alpha_lr'},
+#             "config":'$model_config'
+#         }'
 
-accelerate launch src/lm/finetune_roberta.py --config_dict "$config"
+# accelerate launch src/lm/finetune_roberta.py --config_dict "$config"
 
-echo Evaluating.
+# echo Evaluating.
 
-python src/lm/evaluate_roberta.py --config_dict "$config"
+# python src/lm/evaluate_roberta.py --config_dict "$config"
 
-python src/lm/metrics.py --path $model_path 
+# python src/lm/metrics.py --path $model_path --config_dict "$config"
+
+
+# echo Training Sparse LR 5e-2. 
+# alpha_lr=5e-2
+
+# model_config='{
+#         "vocab_size": 32,
+#         "max_position_embeddings": 514,
+#         "hidden_size": 768,
+#         "num_attention_heads": 12,
+#         "num_hidden_layers": 6,
+#         "type_vocab_size": 1,
+#         "attn_mechanism": "sparse"
+#     }'
+
+
+# exp_name="sparse_5e-2"
+
+# model_path=$STORAGE_DIR'/models/finetune_roberta/sparse/'$exp_name
+# if [[ ! -d $model_path ]]; then
+#   mkdir -p $model_path
+# fi
+
+# dataset=$STORAGE_DIR'/datasets'
+# config='{
+#             "settings": {
+#                 "model": "FacebookAI/roberta-base",
+#                 "save_path": "'$model_path'",
+#                 "tokenizer": "FacebookAI/roberta-base",
+#                 "dataset":"'$dataset'", 
+#                 "task": "glue", 
+#                 "accelerate": true,
+#                 "logging": true,
+#                 "exp_name": "'$exp_name'",
+#                 "epochs": 10,
+#                 "batch_size":'$batch_size',  
+#                 "lr": '$lr',
+#                 "alpha_lr":'$alpha_lr'},
+#             "config":'$model_config'
+#         }'
+
+# accelerate launch src/lm/finetune_roberta.py --config_dict "$config"
+
+# echo Evaluating.
+
+# python src/lm/evaluate_roberta.py --config_dict "$config"
+
+# python src/lm/metrics.py --path $model_path --config_dict "$config"
+
+
+
+# echo Training Sparse LR 2e-2. 
+# alpha_lr=2e-2
+
+# model_config='{
+#         "vocab_size": 32,
+#         "max_position_embeddings": 514,
+#         "hidden_size": 768,
+#         "num_attention_heads": 12,
+#         "num_hidden_layers": 6,
+#         "type_vocab_size": 1,
+#         "attn_mechanism": "sparse"
+#     }'
+
+
+# exp_name="sparse_2e-2"
+
+# model_path=$STORAGE_DIR'/models/finetune_roberta/sparse/'$exp_name
+# if [[ ! -d $model_path ]]; then
+#   mkdir -p $model_path
+# fi
+
+# dataset=$STORAGE_DIR'/datasets'
+# config='{
+#             "settings": {
+#                 "model": "FacebookAI/roberta-base",
+#                 "save_path": "'$model_path'",
+#                 "tokenizer": "FacebookAI/roberta-base",
+#                 "dataset":"'$dataset'", 
+#                 "task": "glue", 
+#                 "accelerate": true,
+#                 "logging": true,
+#                 "exp_name": "'$exp_name'",
+#                 "epochs": 10,
+#                 "batch_size":'$batch_size',  
+#                 "lr": '$lr',
+#                 "alpha_lr":'$alpha_lr'},
+#             "config":'$model_config'
+#         }'
+
+# # accelerate launch src/lm/finetune_roberta.py --config_dict "$config"
+
+# echo Evaluating.
+
+# python src/lm/evaluate_roberta.py --config_dict "$config"
+
+# python src/lm/metrics.py --path $model_path 
+
+
+# echo Training Sparse with Article Training Strat. 
+
+# alpha_lr=1e-1
+
+# model_config='{
+#         "vocab_size": 32,
+#         "max_position_embeddings": 514,
+#         "hidden_size": 768,
+#         "num_attention_heads": 12,
+#         "num_hidden_layers": 6,
+#         "type_vocab_size": 1,
+#         "attn_mechanism": "sparse"
+#     }'
+
+
+# exp_name="sparse_article_trainstrat"
+
+# model_path=$STORAGE_DIR'/models/finetune_roberta/sparse/'$exp_name
+# if [[ ! -d $model_path ]]; then
+#   mkdir -p $model_path
+# fi
+# dataset=$STORAGE_DIR'/datasets'
+# config='{
+#             "settings": {
+#                 "model": "FacebookAI/roberta-base",
+#                 "save_path": "'$model_path'",
+#                 "tokenizer": "FacebookAI/roberta-base",
+#                 "dataset":"'$dataset'", 
+#                 "task": "glue", 
+#                 "accelerate": true,
+#                 "logging": true,
+#                 "exp_name": "'$exp_name'",
+#                 "epochs": 10,
+#                 "batch_size":'$batch_size',  
+#                 "lr": '$lr',
+#                 "alpha_lr":'$alpha_lr',
+#                 "optim_strat": "inverse_sqrt", 
+#                 "warmup_steps": 20000
+#                 },
+#             "config":'$model_config'
+#         }'
+
+# accelerate launch src/lm/finetune_roberta.py --config_dict "$config"
+
+# echo Evaluating.
+
+# python src/lm/evaluate_roberta.py --config_dict "$config"
+
+# python src/lm/metrics.py --path $model_path --config_dict "$config"
 
 
 rsync -avz --update --progress /Tmp/lvpoellhuber/models/finetune_roberta/ /data/rech/poellhul/models/finetune_roberta

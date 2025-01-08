@@ -20,6 +20,7 @@ cd Documents/Masters/benchmarkIR
 
 # Change the pipeline or script to the one you wanna run
 #bash src/lm/pipelines/finetune_paramsearch.sh     
+set -x
 bash src/lm/pipelines/$1     
 
 #python src/lm/preprocessing.py --task glue --overwrite True

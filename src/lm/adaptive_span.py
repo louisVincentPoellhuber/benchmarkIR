@@ -53,16 +53,22 @@ class AdaptiveMask(nn.Module):
             self.current_val = nn.Parameter(torch.zeros(shape) + init_val, requires_grad=True)
         mask_template = torch.linspace(1 - max_size, 0, steps=max_size)
         self.register_buffer('mask_template', mask_template)
+        self.attn_span = torch.zeros(shape)
 
     def forward(self, x):
-       #scaled_val = self.current_val * self._max_size
+        #scaled_val = self.current_val * self._max_size
         mask = self.mask_template + self.current_val * self._max_size
         mask = mask / self._ramp_size + 1
         mask = mask.clamp(0, 1)
 
+        self.attn_span = torch.count_nonzero(mask, dim=2)
+
         if x.size(-1) < self._max_size:
             # the input could have been trimmed beforehand to save computation
             mask = mask[:, :, -x.size(-1):]
+
+
+
         x = x * mask
         return x
 
@@ -112,8 +118,8 @@ class AdaptiveSpan(nn.Module):
     def forward(self, attn, normalize=False):
         """mask attention with the right span"""
         # batch and head dimensions are merged together, so separate them first
-        B = attn.size(0) # batch size = 16
-        M = attn.size(1) # block size = 512
+        #B = attn.size(0) # batch size = 16
+        #M = attn.size(1) # block size = 512
         #attn = attn.reshape(B // self._num_attention_heads, self._num_attention_heads, M, -1)
 
         attn = self._mask(attn)

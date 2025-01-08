@@ -455,6 +455,10 @@ class RobertaAdaptiveSelfAttention(nn.Module):
         self.is_decoder = config.is_decoder     
         #self.seq_attention = SeqAttention(config)
         self.adaptive_mask = AdaptiveSpan(self.config)
+
+        self.prior_softmax = False
+        if hasattr(self.config, "prior_softmax"):
+            self.prior_softmax = self.config.prior_softmax
         
 
     def transpose_for_scores(self, x: torch.Tensor) -> torch.Tensor:
@@ -512,8 +516,10 @@ class RobertaAdaptiveSelfAttention(nn.Module):
             # if encoder bi-directional self-attention `past_key_value` is always `None`
             past_key_value = (key_layer, value_layer)
 
-            
         # Take the dot product between "query" and "key" to get the raw attention scores.
+
+       # key_layer, value_layer, temp = self.adaptive_mask.trim_memory(query_layer, key_layer, value_layer, None)
+
         attention_scores = torch.matmul(query_layer, key_layer.transpose(-1, -2))
 
         if self.position_embedding_type == "relative_key" or self.position_embedding_type == "relative_key_query":
@@ -543,15 +549,19 @@ class RobertaAdaptiveSelfAttention(nn.Module):
             # Apply the attention mask is (precomputed for all layers in RobertaModel forward() function)
             attention_scores = attention_scores + attention_mask
 
+        if self.prior_softmax & self.config.adapt_span_enabled:
+            attention_scores = self.adaptive_mask(attention_scores)
+
         # Normalize the attention scores to probabilities.
         attention_probs = nn.functional.softmax(attention_scores, dim=-1)
 
+        if (not self.prior_softmax) & self.config.adapt_span_enabled:
+            attention_probs = self.adaptive_mask(attention_probs)
+        
         # This is actually dropping out entire tokens to attend to, which might
         # seem a bit unusual, but is taken from the original Transformer paper.
         attention_probs = self.dropout(attention_probs)
 
-        # TODO: Not sure if I should apply the Adaptive Mask here or before dropout. 
-        attention_probs = self.adaptive_mask(attention_probs)
 
         # Mask heads if we want to
         if head_mask is not None:

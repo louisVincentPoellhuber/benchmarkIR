@@ -28,7 +28,7 @@ def compute_metrics(save_path, config):
         experiment_df = pd.DataFrame(columns=["date", "computer", "job_id"] + all_tasks + ["model_path", "config"])
 
     finetune_paths = [model for model in os.listdir(save_path) if os.path.isdir(os.path.join(save_path, model))]
-
+    print(save_path)
     # Adding stuff to the row
     row = []
     columns = []
@@ -48,7 +48,6 @@ def compute_metrics(save_path, config):
     if job_id == None: job_id = "local"
     row.append(job_id)
     columns.append("job_id")
-
 
     # Computing metrics
     tasks = []

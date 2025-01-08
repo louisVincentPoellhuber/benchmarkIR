@@ -26,7 +26,7 @@ print(STORAGE_DIR)
 
 def parse_arguments():
     argparser = argparse.ArgumentParser("Evaluating Roberta")
-    argparser.add_argument('--config', default="roberta_glue") # default, adaptive, sparse
+    argparser.add_argument('--config', default="eval") # default, adaptive, sparse
     argparser.add_argument('--config_dict', default={}) 
     args = argparser.parse_args()
 
