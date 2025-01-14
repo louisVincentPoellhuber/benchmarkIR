@@ -15,8 +15,6 @@ from torch.optim import AdamW
 from datasets import load_dataset, load_metric
 import copy
 
-from adagrad_with_grad_clip import AdagradWithGradClip
-
 import dotenv
 dotenv.load_dotenv()
 
@@ -28,12 +26,11 @@ def parse_arguments():
     argparser.add_argument('--config', default="test") # default, adaptive, sparse
     argparser.add_argument('--config_dict', default={}) 
     args = argparser.parse_args()
-
     return args
 
-def log_metrics(accelerator, model, experiment, step, epoch, num_training_steps, config, loss, print_metrics=False):
+def log_metrics(accelerator, model, experiment, step, epoch, num_training_steps, config, loss):
     step = step + epoch * num_training_steps
-
+    
     if accelerator != None:                
         if accelerator.is_main_process:
             model = accelerator.unwrap_model(model)
@@ -46,27 +43,21 @@ def log_metrics(accelerator, model, experiment, step, epoch, num_training_steps,
         if config.attn_mechanism =="sparse":
             log_dict = {"loss": loss}
             for layer_nb, layer in enumerate(model.roberta.encoder.layer):
-                alphas = layer.attention.self.true_alpha.data
+                alphas = layer.attention.self.alpha.data
                 names = [f"layer_{layer_nb}/alpha_"+str(i) for i in range(len(alphas))]
                 alpha_dict = dict(zip(names, alphas))
-                if print_metrics:  print(f"Layer {layer_nb}: {alpha_dict}")
-
                 log_dict.update(alpha_dict)
             experiment.log_metrics(log_dict, step=step)
-
+            
         elif config.attn_mechanism == "adaptive":
             log_dict = {"loss": loss}
             for layer_nb, layer in enumerate(model.roberta.encoder.layer):
-                spans = layer.attention.self.adaptive_mask._mask.attn_span.data
+                spans = layer.attention.self.adaptive_mask._mask.current_val.data
                 names = [f"layer_{layer_nb}/span_"+str(i) for i in range(len(spans))]
                 span_dict = dict(zip(names, spans))
                 log_dict.update(span_dict)
-
-                if print_metrics:  print(f"Layer {layer_nb}: {span_dict}")
-
                 experiment.log_metrics(log_dict, step=step)
-
-
+                
 def log_gradients(accelerator, model, experiment, step, epoch, num_training_steps):
     step = step + epoch * num_training_steps
 
@@ -82,8 +73,6 @@ def log_gradients(accelerator, model, experiment, step, epoch, num_training_step
                 
                 total_norm = total_norm ** 0.5
                 experiment.log_metric("total_grad_norm", total_norm, step=step)
-
-
 
 def main(arg_dict):
     config_dict = arg_dict["config"]
@@ -170,12 +159,12 @@ def main(arg_dict):
         num_warmup_steps=num_warmup_steps, 
         num_training_steps=num_training_steps
     )
+
     # Accelerator function
     model, optim, dataloader, scheduler = accelerator.prepare(
         model, optim, train_dataloader, scheduler
     )
     #dataloader = train_dataloader
-
     print("Beginning training process. ")
     # WandB stuff
     
@@ -189,12 +178,11 @@ def main(arg_dict):
         else:
             experiment = comet_ml.Experiment(project_name="benchmarkIR", auto_metric_step_rate=100)
             experiment.set_name(f"{settings['exp_name']}_{task}")
-
-
-
+             
     # Training loop
     for epoch in range(epochs):
         loop = tqdm(dataloader, leave=True)
+
         for i, batch in enumerate(loop):
             optim.zero_grad()
             input_ids = batch["input_ids"]#.to(device) # already taken care of by Accelerator
@@ -202,31 +190,27 @@ def main(arg_dict):
             labels = batch["labels"]#.to(device)
 
             outputs = model(input_ids, attention_mask = mask, labels = labels)
-
             loss = outputs.loss
             #loss.backward() # again, replaced by the accelerator version
+
             accelerator.backward(loss)
             optim.step()
             scheduler.step()
 
-
             loop.set_description(f'Epoch: {epoch}')
             loop.set_postfix(loss = loss.item())
-
             
             if (i%100==0) & logging:
                 log_metrics(accelerator, model, experiment, i, epoch, len(loop), config, loss)
-                #log_gradients(accelerator, model, experiment, i, epoch, len(loop))
+                log_gradients(accelerator, model, experiment, i, epoch, len(loop))
             
+
         #unwrapped_model = accelerator.unwrap_model(model)
         #unwrapped_model.save_pretrained(
         #    model_save_path, # used to be model_path
         #    is_main_process=accelerator.is_main_process,
         #    save_function=accelerator.save,
         #)
-    
-        if logging:
-            log_metrics(accelerator, model, experiment, i, epoch, len(loop), config, loss, print_metrics=True)
 
 
     print("Training done. Saving model. ")
@@ -245,37 +229,34 @@ if __name__ == "__main__":
         original_arg_dict = json.loads(args.config_dict)
     else:   
         config_dict = os.path.join("src/lm/configs", args.config+"_finetune.json")
+        
         with open(config_dict) as fp: 
             original_arg_dict = json.load(fp)
         
     for key in original_arg_dict["settings"]:
+        
         if type(original_arg_dict["settings"][key]) == str:
             original_arg_dict["settings"][key] = original_arg_dict["settings"][key].replace("STORAGE_DIR", STORAGE_DIR)
-
+    
     if original_arg_dict["settings"]["task"]=="glue":
         #tasks = ["cola", "mnli", "mrpc", "qnli", "qqp", "rte", "sst2", "wnli"]
-        tasks = ["cola", "mrpc", "rte", "sst2", "wnli", "qnli"]
-
+        tasks = ["cola", "mrpc", "qnli", "rte", "sst2", "wnli"]
+        #tasks = ["cola", "mrpc", "rte", "wnli"]
         for task in tasks:
             print(f"============ Processing {task} ============")
-
             # Adjusting the config for each task
             arg_dict = copy.deepcopy(original_arg_dict)
-
             try:    
                 model = RobertaForSequenceClassification.from_pretrained(arg_dict["settings"]["model"])
             except:
                 arg_dict["settings"]["model"] = os.path.join(arg_dict["settings"]["model"], "roberta_"+task)
-
             if not os.path.exists(arg_dict["settings"]["save_path"]):
                 os.mkdir(arg_dict["settings"]["save_path"])
-
             arg_dict["settings"]["task"] = task
             
             arg_dict["settings"]["save_path"] = os.path.join(arg_dict["settings"]["save_path"], "roberta_"+task)  # Changed 'save_path' from 'model'
             
             arg_dict["settings"]["dataset"] = os.path.join(arg_dict["settings"]["dataset"], os.path.join(task, task+"_train.pt"))
-
             main(arg_dict)
         
     else:

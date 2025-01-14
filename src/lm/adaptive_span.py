@@ -118,8 +118,8 @@ class AdaptiveSpan(nn.Module):
     def forward(self, attn, normalize=False):
         """mask attention with the right span"""
         # batch and head dimensions are merged together, so separate them first
-        #B = attn.size(0) # batch size = 16
-        #M = attn.size(1) # block size = 512
+        B = attn.size(0) # batch size = 16
+        M = attn.size(1) # block size = 512
         #attn = attn.reshape(B // self._num_attention_heads, self._num_attention_heads, M, -1)
 
         attn = self._mask(attn)

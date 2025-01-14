@@ -15,8 +15,6 @@ from torch.optim import AdamW
 from datasets import load_dataset, load_metric
 import copy
 
-from metrics import compute_metrics
-
 import dotenv
 dotenv.load_dotenv()
 
@@ -150,6 +148,7 @@ if __name__ == "__main__":
     if original_arg_dict["settings"]["task"]=="glue":
         #tasks = ["cola", "mnli", "mrpc", "qnli", "qqp", "rte", "sst2", "wnli"]        
         tasks = ["cola", "mrpc", "qnli", "rte", "sst2", "wnli"]
+        #tasks = ["cola", "mrpc", "rte", "wnli"]
 
         for task in tasks:
             print(f"============ Processing {task} ============")

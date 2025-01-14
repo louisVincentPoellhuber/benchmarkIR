@@ -10,10 +10,7 @@
         "exp_name": "test_ft",
         "epochs": 10,
         "batch_size": 16,  
-        "lr": 1e-4, 
-        "alpha_lr": 1e-1,
-        "optim_strat": "constant_with_warmup", 
-        "warmup_steps": 32000
+        "lr": 1e-4
     },
     "config": {
         "max_position_embeddings": 514,
@@ -27,7 +24,7 @@
         "adapt_span_enabled": true,
         "adapt_span_loss": 2e-06, 
         "adapt_span_ramp": 32,
-        "adapt_span_init": 0,
+        "adapt_span_init": 0.5,
         "adapt_span_cache": true
     }
 }

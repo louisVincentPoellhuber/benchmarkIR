@@ -139,20 +139,22 @@ def main(arg_dict):
                 {'params': other_params, 'lr': settings["lr"]},  # Default learning rate for most parameters
                 {'params': alpha_params, 'lr': settings["alpha_lr"]}          # Higher learning rate for alpha
             ], betas=(0.9, 0.98), eps=1e-6)
-        
-    elif (config.attn_mechanism == "adaptive") & ("adaptive_lr" in settings.keys()):
-        adaptive_params = []
-        for i in range(len(model.roberta.encoder.layer)):
-            adaptive_params.append(model.roberta.encoder.layer[i].attention.self.alpha)
+    elif config.attn_mechanism == "adaptive":
+        if "adaptive_lr" in settings.keys():
+            adaptive_params = []
+            for i in range(len(model.roberta.encoder.layer)):
+                adaptive_params.append(model.roberta.encoder.layer[i].attention.self.alpha)
 
-        other_params = []
-        for name, param in model.named_parameters():
-            if not name.endswith('attention.self.adaptive_mask._mask.current_val'):
-                other_params.append(param)
-        optim = AdamW([
-                {'params': other_params, 'lr': settings["lr"]},  # Default learning rate for most parameters
-                {'params': adaptive_params, 'lr': settings["adaptive_lr"]}          # Higher learning rate for alpha
-            ], betas=(0.9, 0.98), eps=1e-6)
+            other_params = []
+            for name, param in model.named_parameters():
+                if not name.endswith('attention.self.adaptive_mask._mask.current_val'):
+                    other_params.append(param)
+            optim = AdamW([
+                    {'params': other_params, 'lr': settings["lr"]},  # Default learning rate for most parameters
+                    {'params': adaptive_params, 'lr': settings["adaptive_lr"]}          # Higher learning rate for alpha
+                ], betas=(0.9, 0.98), eps=1e-6)
+        else:
+            optim = AdagradWithGradClip(params = model.parameters(), grad_clip=0.03, lr=0.07)
     else:
         optim = AdamW(model.parameters(), lr=settings["lr"]) # typical range is 1e-6 to 1e-4
     
@@ -161,15 +163,18 @@ def main(arg_dict):
     # Number of training epochs and warmup steps
     epochs = settings["epochs"]
     num_training_steps = epochs * len(train_dataloader)
-    num_warmup_steps = int(0.06 * num_training_steps)
+
+    num_warmup_steps = int(0.06 * num_training_steps) if "warmup_steps" not in settings.keys() else settings["warmup_steps"]
+    optim_strat = "linear" if "optim_strat" not in settings.keys() else settings["optim_strat"]
 
     # Initialize the scheduler
     scheduler = get_scheduler(
-        "linear", 
+        optim_strat, 
         optimizer=optim, 
         num_warmup_steps=num_warmup_steps, 
         num_training_steps=num_training_steps
     )
+
     # Accelerator function
     model, optim, dataloader, scheduler = accelerator.prepare(
         model, optim, train_dataloader, scheduler
