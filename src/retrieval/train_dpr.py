@@ -154,7 +154,7 @@ if __name__ == "__main__":
 
     loss_fct = contrastive_loss
 
-    experiment = comet_ml.Experiment(project_name="benchmarkIR", auto_metric_step_rate=100)
+    experiment = comet_ml.Experiment(project_name="implement-sparse", auto_metric_step_rate=100)
 
 
     print("Beginning training process. ")

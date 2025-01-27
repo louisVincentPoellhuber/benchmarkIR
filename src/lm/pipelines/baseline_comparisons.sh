@@ -12,7 +12,7 @@ exp_name="roberta_baseline"
 
 echo Evaluating Roberta Baseline.
 
-model_path=$STORAGE_DIR'/models/finetune_roberta/roberta'$exp_name
+model_path=$STORAGE_DIR'/models/finetune_roberta/roberta/'$exp_name
 echo $model_path
 if [[ ! -d $model_path ]]; then
   mkdir -p $model_path

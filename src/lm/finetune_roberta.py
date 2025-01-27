@@ -109,52 +109,52 @@ def log_gradients(accelerator, model, experiment, step, epoch, num_training_step
                 total_norm = total_norm ** 0.5
                 experiment.log_metric("total_grad_norm", total_norm, step=step)
 
-def init_parameters(config, settings, train_dataloader):
-    # For sparse attention 
-    if config.attn_mechanism == "sparse":
-        alpha_params = []
-        for i in range(len(model.roberta.encoder.layer)):
-            alpha_params.append(model.roberta.encoder.layer[i].attention.self.alpha)
+# def init_parameters(config, settings, train_dataloader):
+#     # For sparse attention 
+#     if config.attn_mechanism == "sparse":
+#         alpha_params = []
+#         for i in range(len(model.roberta.encoder.layer)):
+#             alpha_params.append(model.roberta.encoder.layer[i].attention.self.alpha)
 
-        other_params = []
-        for name, param in model.named_parameters():
-            if not name.endswith('attention.self.alpha'):
-                other_params.append(param)
-        optim = AdamW([
-                {'params': other_params, 'lr': settings["lr"]},  # Default learning rate for most parameters
-                {'params': alpha_params, 'lr': settings["alpha_lr"]}          # Higher learning rate for alpha
-            ], betas=(0.9, 0.98), eps=1e-6)
+#         other_params = []
+#         for name, param in model.named_parameters():
+#             if not name.endswith('attention.self.alpha'):
+#                 other_params.append(param)
+#         optim = AdamW([
+#                 {'params': other_params, 'lr': settings["lr"]},  # Default learning rate for most parameters
+#                 {'params': alpha_params, 'lr': settings["alpha_lr"]}          # Higher learning rate for alpha
+#             ], betas=(0.9, 0.98), eps=1e-6)
         
-    elif (config.attn_mechanism == "adaptive") & ("adaptive_lr" in settings.keys()):
-        adaptive_params = []
-        for i in range(len(model.roberta.encoder.layer)):
-            adaptive_params.append(model.roberta.encoder.layer[i].attention.self.alpha)
+#     elif (config.attn_mechanism == "adaptive") & ("adaptive_lr" in settings.keys()):
+#         adaptive_params = []
+#         for i in range(len(model.roberta.encoder.layer)):
+#             adaptive_params.append(model.roberta.encoder.layer[i].attention.self.alpha)
 
-        other_params = []
-        for name, param in model.named_parameters():
-            if not name.endswith('attention.self.adaptive_mask._mask.current_val'):
-                other_params.append(param)
-        optim = AdamW([
-                {'params': other_params, 'lr': settings["lr"]},  # Default learning rate for most parameters
-                {'params': adaptive_params, 'lr': settings["adaptive_lr"]}          # Higher learning rate for alpha
-            ], betas=(0.9, 0.98), eps=1e-6)
-    else:
-        optim = AdamW(model.parameters(), lr=settings["lr"]) # typical range is 1e-6 to 1e-4
+#         other_params = []
+#         for name, param in model.named_parameters():
+#             if not name.endswith('attention.self.adaptive_mask._mask.current_val'):
+#                 other_params.append(param)
+#         optim = AdamW([
+#                 {'params': other_params, 'lr': settings["lr"]},  # Default learning rate for most parameters
+#                 {'params': adaptive_params, 'lr': settings["adaptive_lr"]}          # Higher learning rate for alpha
+#             ], betas=(0.9, 0.98), eps=1e-6)
+#     else:
+#         optim = AdamW(model.parameters(), lr=settings["lr"]) # typical range is 1e-6 to 1e-4
     
-    # Number of training epochs and warmup steps
-    epochs = settings["epochs"]
-    num_training_steps = epochs * len(train_dataloader)
-    num_warmup_steps = int(0.06 * num_training_steps)
+#     # Number of training epochs and warmup steps
+#     epochs = settings["epochs"]
+#     num_training_steps = epochs * len(train_dataloader)
+#     num_warmup_steps = int(0.06 * num_training_steps)
 
-    # Initialize the scheduler
-    scheduler = get_scheduler(
-        "linear", 
-        optimizer=optim, 
-        num_warmup_steps=num_warmup_steps, 
-        num_training_steps=num_training_steps
-    )
+#     # Initialize the scheduler
+#     scheduler = get_scheduler(
+#         "linear", 
+#         optimizer=optim, 
+#         num_warmup_steps=num_warmup_steps, 
+#         num_training_steps=num_training_steps
+#     )
 
-    return optim, scheduler, epochs
+#     return optim, scheduler, epochs
 
 def main(arg_dict):
     config_dict = arg_dict["config"]
@@ -164,6 +164,7 @@ def main(arg_dict):
     enable_logging = settings["logging"]
 
     # Main arguments
+    dataset_path = settings["dataset"]
     model_path = settings["model"]
     model_save_path = settings["save_path"]
     tokenizer_path = settings["tokenizer"]
@@ -196,9 +197,51 @@ def main(arg_dict):
     model = RobertaForSequenceClassification(config=config).from_pretrained(model_path, config=config, ignore_mismatched_sizes=True)
     model.to(device)
 
-    train_dataloader = get_dataloader(settings["batch_size"], settings["dataset"])
+    # For sparse attention 
+    if config.attn_mechanism == "sparse":
+        alpha_params = []
+        for i in range(len(model.roberta.encoder.layer)):
+            alpha_params.append(model.roberta.encoder.layer[i].attention.self.alpha)
 
-    optim, scheduler, epochs = init_parameters(config, settings, train_dataloader)
+        other_params = []
+        for name, param in model.named_parameters():
+            if not name.endswith('attention.self.alpha'):
+                other_params.append(param)
+        optim = AdamW([
+                {'params': other_params, 'lr': settings["lr"]},  # Default learning rate for most parameters
+                {'params': alpha_params, 'lr': settings["alpha_lr"]}          # Higher learning rate for alpha
+            ], betas=(0.9, 0.98), eps=1e-6)
+        
+    elif (config.attn_mechanism == "adaptive") & ("adaptive_lr" in settings.keys()):
+        adaptive_params = []
+        for i in range(len(model.roberta.encoder.layer)):
+            adaptive_params.append(model.roberta.encoder.layer[i].attention.self.alpha)
+
+        other_params = []
+        for name, param in model.named_parameters():
+            if not name.endswith('attention.self.adaptive_mask._mask.current_val'):
+                other_params.append(param)
+        optim = AdamW([
+                {'params': other_params, 'lr': settings["lr"]},  # Default learning rate for most parameters
+                {'params': adaptive_params, 'lr': settings["adaptive_lr"]}          # Higher learning rate for alpha
+            ], betas=(0.9, 0.98), eps=1e-6)
+    else:
+        optim = AdamW(model.parameters(), lr=settings["lr"]) # typical range is 1e-6 to 1e-4
+    
+    train_dataloader = get_dataloader(settings["batch_size"], dataset_path)
+
+    # Number of training epochs and warmup steps
+    epochs = settings["epochs"]
+    num_training_steps = epochs * len(train_dataloader)
+    num_warmup_steps = int(0.06 * num_training_steps)
+
+    # Initialize the scheduler
+    scheduler = get_scheduler(
+        "linear", 
+        optimizer=optim, 
+        num_warmup_steps=num_warmup_steps, 
+        num_training_steps=num_training_steps
+    )
 
     # Accelerator function
     model, optim, dataloader, scheduler = accelerator.prepare(
@@ -212,12 +255,12 @@ def main(arg_dict):
     if enable_logging:
         experiment = None
         if enable_accelerate: 
-            accelerator.init_trackers(project_name="benchmarkIR", config = config.to_dict())
+            accelerator.init_trackers(project_name="new-attention", config = config.to_dict())
             if accelerator.is_main_process:
-                experiment  = comet_ml.Experiment(project_name="benchmarkIR", auto_metric_step_rate=100)
+                experiment  = comet_ml.Experiment(project_name="new-attention", auto_metric_step_rate=100)
                 experiment.set_name(f"{settings['exp_name']}_{task}")
         else:
-            experiment = comet_ml.Experiment(project_name="benchmarkIR", auto_metric_step_rate=100)
+            experiment = comet_ml.Experiment(project_name="new-attention", auto_metric_step_rate=100)
             experiment.set_name(f"{settings['exp_name']}_{task}")
 
 

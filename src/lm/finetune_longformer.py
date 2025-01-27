@@ -211,12 +211,12 @@ def main(arg_dict):
     if enable_logging:
         experiment = None
         if enable_accelerate: 
-            accelerator.init_trackers(project_name="benchmarkIR", config = config.to_dict())
+            accelerator.init_trackers(project_name="new-attention", config = config.to_dict())
             if accelerator.is_main_process:
-                experiment  = comet_ml.Experiment(project_name="benchmarkIR", auto_metric_step_rate=100)
+                experiment  = comet_ml.Experiment(project_name="new-attention", auto_metric_step_rate=100)
                 experiment.set_name(f"{settings['exp_name']}_{task}")
         else:
-            experiment = comet_ml.Experiment(project_name="benchmarkIR", auto_metric_step_rate=100)
+            experiment = comet_ml.Experiment(project_name="new-attention", auto_metric_step_rate=100)
             experiment.set_name(f"{settings['exp_name']}_{task}")
 
 

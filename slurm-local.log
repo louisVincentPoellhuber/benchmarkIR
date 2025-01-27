@@ -1,0 +1,5 @@
+2025-01-27 10:52 - WARNING - ============ Finetuning test_rpeK. ============
+2025-01-27 10:52 - INFO - Model Configuration: {'settings': {'model': 'FacebookAI/roberta-base', 'save_path': '/home/lvpoellhuber/storage/models/finetune_roberta/roberta', 'tokenizer': 'FacebookAI/roberta-base', 'dataset': '/home/lvpoellhuber/storage/datasets', 'task': 'glue', 'accelerate': True, 'logging': False, 'exp_name': 'test_rpeK', 'epochs': 10, 'batch_size': 16, 'lr': 0.0001}, 'config': {'max_position_embeddings': 514, 'hidden_size': 768, 'num_attention_heads': 12, 'num_hidden_layers': 6, 'type_vocab_size': 1, 'attn_mechanism': 'eager', 'num_labels': 2, 'position_embedding_type': 'relative_key'}}
+2025-01-27 10:52 - WARNING - Processing cola.
+2025-01-27 10:54 - WARNING - Initializing training.
+2025-01-27 10:55 - WARNING - Beginning training process.

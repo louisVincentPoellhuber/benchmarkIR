@@ -197,11 +197,11 @@ if __name__ == "__main__":
         
         experiment = None
         if enable_accelerate: 
-            accelerator.init_trackers(project_name="benchmarkIR", config = config.to_dict())
+            accelerator.init_trackers(project_name="implement-sparse", config = config.to_dict())
             if accelerator.is_main_process:
-                experiment  = comet_ml.Experiment(project_name="benchmarkIR", auto_metric_step_rate=100)
+                experiment  = comet_ml.Experiment(project_name="implement-sparse", auto_metric_step_rate=100)
         else:
-            experiment = comet_ml.Experiment(project_name="benchmarkIR", auto_metric_step_rate=100, )
+            experiment = comet_ml.Experiment(project_name="implement-sparse", auto_metric_step_rate=100, )
     # You can add a config here, for the experiment
    
     # Training loop
