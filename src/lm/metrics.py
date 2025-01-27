@@ -4,6 +4,22 @@ import pandas as pd
 import datetime
 import json
 
+from finetune_roberta import log_message
+
+import logging
+JOBID = os.getenv("SLURM_JOB_ID")
+if JOBID == None: JOBID = "local"
+logging.basicConfig( 
+    encoding="utf-8", 
+    filename=f"slurm-{JOBID}.log", 
+    filemode="a", 
+    format="{asctime} - {levelname} - {message}",
+    style="{",
+    datefmt="%Y-%m-%d %H:%M",
+    level = logging.INFO
+    )
+
+
 def parse_arguments():
     argparser = argparse.ArgumentParser("Computing metrics")
     argparser.add_argument('--path')
@@ -53,11 +69,11 @@ def compute_metrics(save_path, config):
     tasks = []
     for model in finetune_paths:
         task = model.split("_")[1]
-        metrics_path = os.path.join(os.path.join(save_path, model), "metrics.csv")
+        metrics_path = os.path.join(os.path.join(save_path, model), "avg_metrics.csv")
 
         if os.path.exists(metrics_path):
             model_metrics = pd.read_csv(metrics_path)
-            avg_acc = model_metrics["accuracy"].mean()
+            avg_acc = model_metrics.loc["accuracy"]
             
             row.append(avg_acc)
             columns.append(task)
@@ -85,5 +101,6 @@ if __name__ == "__main__":
     
     save_path = args.path
     config = json.loads(args.config_dict)
+    log_message(f"============ Metrics for {config['settings']['exp_name']}. ============", logging.WARNING, None)
 
     compute_metrics(save_path, config)

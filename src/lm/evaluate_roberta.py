@@ -2,6 +2,7 @@ import comet_ml
 
 from preprocessing import *
 from model_custom_roberta import *
+from finetune_roberta import log_message
 
 import argparse
 import pandas as pd
@@ -18,8 +19,24 @@ import copy
 import dotenv
 dotenv.load_dotenv()
 
+
+import logging
+JOBID = os.getenv("SLURM_JOB_ID")
+if JOBID == None: JOBID = "local"
+logging.basicConfig( 
+    encoding="utf-8", 
+    filename=f"slurm-{JOBID}.log", 
+    filemode="a", 
+    format="{asctime} - {levelname} - {message}",
+    style="{",
+    datefmt="%Y-%m-%d %H:%M",
+    level = logging.INFO
+    )
+
 STORAGE_DIR = os.getenv("STORAGE_DIR")
 print(STORAGE_DIR)
+logging.debug(f"Saving to {STORAGE_DIR}.")
+
 
 
 def parse_arguments():
@@ -48,7 +65,7 @@ def main(arg_dict):
     settings = arg_dict["settings"]
     
     enable_accelerate = settings["accelerate"]
-    logging = settings["logging"]
+    enable_logging = settings["logging"]
 
     # Main arguments
     dataset_path = settings["dataset"] 
@@ -71,9 +88,9 @@ def main(arg_dict):
     config = CustomRobertaConfig.from_dict(config_dict)
     config.vocab_size = tokenizer.vocab_size
     config.num_labels = num_labels
-    print(config.num_labels)
 
     print(model_path)
+    log_message(f"Using the model from: {model_path}", logging.DEBUG, accelerator)
     model = RobertaForSequenceClassification(config=config).from_pretrained(model_path, config=config, ignore_mismatched_sizes=True)
     model.to(device)
 
@@ -111,10 +128,17 @@ def main(arg_dict):
             row.append(train_acc["accuracy"])
             row_names.append("accuracy")
         metrics_df.append(row)
-    
+
+    log_message(f"Saving metric data to: {model_save_path}", logging.DEBUG, accelerator)
+
     print(os.path.join(model_save_path, "metrics.csv"))
     metrics_df = pd.DataFrame(metrics_df, columns = row_names)
+    avg_metrics = metrics_df.mean()
     metrics_df.to_csv(os.path.join(model_save_path, "metrics.csv"))
+    avg_metrics.to_csv(os.path.join(model_save_path, "avg_metrics.csv"))
+
+    print(f"Average accuracy: {avg_metrics.loc['accuracy']}.")
+    log_message(f"Average accuracy: {avg_metrics.loc['accuracy']}.", logging.WARNING, accelerator)
     
     dist_path = os.path.join(os.path.dirname(model_save_path), "prediction_dist.csv")
     dist_df = pd.DataFrame(prediction_distribution.cpu().numpy()).T
@@ -133,7 +157,6 @@ if __name__ == "__main__":
     args = parse_arguments()
 
     if len(args.config_dict)>0:
-        print(args.config_dict)
         original_arg_dict = json.loads(args.config_dict)
     else:   
         config_dict = os.path.join("src/lm/configs", args.config+"_finetune.json")
@@ -143,15 +166,18 @@ if __name__ == "__main__":
     for key in original_arg_dict["settings"]:
         if type(original_arg_dict["settings"][key]) == str:
             original_arg_dict["settings"][key] = original_arg_dict["settings"][key].replace("STORAGE_DIR", STORAGE_DIR)
-
+    
+    log_message(f"============ Evaluating {original_arg_dict['settings']['exp_name']}. ============", logging.WARNING, None)
+    log_message(f"Model Configuration: {original_arg_dict}", logging.INFO, None)
 
     if original_arg_dict["settings"]["task"]=="glue":
         #tasks = ["cola", "mnli", "mrpc", "qnli", "qqp", "rte", "sst2", "wnli"]        
-        tasks = ["cola", "mrpc", "qnli", "rte", "sst2", "wnli"]
+        tasks = ["qnli"]
         #tasks = ["cola", "mrpc", "rte", "wnli"]
 
         for task in tasks:
             print(f"============ Processing {task} ============")
+            log_message(f"Processing {task}.", logging.WARNING, None)
 
             # Adjusting the config for each task
             arg_dict = copy.deepcopy(original_arg_dict)

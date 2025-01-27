@@ -1,15 +1,14 @@
 import comet_ml
 
 from preprocessing import *
-from model_custom_roberta import *
+
 
 import argparse
 import pandas as pd
 import json
 
 import wandb
-from transformers import RobertaConfig, get_scheduler
-from roberta_config import CustomRobertaConfig
+from transformers import LongformerConfig, LongformerForSequenceClassification, get_scheduler
 from accelerate import Accelerator, DistributedDataParallelKwargs
 from torch.optim import AdamW
 from datasets import load_dataset, load_metric
@@ -189,11 +188,11 @@ def main(arg_dict):
         
     print("Initializing training.")
     log_message("Initializing training.", logging.WARNING, accelerator)
-    config = CustomRobertaConfig.from_dict(config_dict)
+    config = LongformerConfig.from_dict(config_dict)
     config.vocab_size = tokenizer.vocab_size
     config.num_labels = task_num_labels[task]
 
-    model = RobertaForSequenceClassification(config=config).from_pretrained(model_path, config=config, ignore_mismatched_sizes=True)
+    model = LongformerForSequenceClassification(config=config).from_pretrained(model_path, config=config, ignore_mismatched_sizes=True)
     model.to(device)
 
     train_dataloader = get_dataloader(settings["batch_size"], settings["dataset"])

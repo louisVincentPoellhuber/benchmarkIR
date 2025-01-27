@@ -5,9 +5,9 @@ lr=1e-4
 
 echo Roberta once more. 
 
-exp_name="roberta_scripttest" 
+exp_name="longformer_test" 
 
-model_path=$STORAGE_DIR'/models/finetune_roberta/roberta/'$exp_name
+model_path=$STORAGE_DIR'/models/finetune_longformer/'$exp_name
 if [[ ! -d $model_path ]]; then
   mkdir -p $model_path
 fi
@@ -19,14 +19,13 @@ model_config='{
         "num_attention_heads": 12,
         "num_hidden_layers": 6,
         "type_vocab_size": 1,
-        "attn_mechanism": "eager",
         "num_labels":4
     }'
 
   config='{"settings": {
-          "model": "FacebookAI/roberta-base",
+          "model": "allenai/longformer-base-4096",
           "save_path": "'$model_path'",
-          "tokenizer": "FacebookAI/roberta-base",
+          "tokenizer": "allenai/longformer-base-4096",
           "dataset":"'$dataset'", 
           "task": "glue", 
           "accelerate": true,

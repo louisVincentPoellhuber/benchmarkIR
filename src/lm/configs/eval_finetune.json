@@ -1,7 +1,7 @@
 {
     "settings": {
         "model": "FacebookAI/roberta-base",
-        "save_path": "STORAGE_DIR/models/finetune_roberta/adaptive/init_0.5",
+        "save_path": "STORAGE_DIR/models/finetune_roberta/adaptive/init_0.5_speedtest",
         "tokenizer": "FacebookAI/roberta-base",
         "dataset":"STORAGE_DIR/datasets", 
         "task": "glue",
