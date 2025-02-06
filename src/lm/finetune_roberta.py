@@ -6,8 +6,8 @@ from model_custom_roberta import *
 import argparse
 import pandas as pd
 import json
+import pickle
 
-import wandb
 from transformers import RobertaConfig, get_scheduler
 from roberta_config import CustomRobertaConfig
 from accelerate import Accelerator, DistributedDataParallelKwargs
@@ -36,6 +36,59 @@ dotenv.load_dotenv()
 STORAGE_DIR = os.getenv("STORAGE_DIR")
 print(STORAGE_DIR)
 logging.debug(f"Saving to {STORAGE_DIR}.")
+
+
+# Step 3: Monitor Training Progress
+class TrainingMonitor:
+    def __init__(self, model):
+        self.model = model
+        self.step_metrics = []
+    
+    def log_step(self, batch, loss, step):
+        # Log gradients
+        grad_norms = {
+            name: param.grad.norm().item()
+            for name, param in self.model.named_parameters()
+            if param.requires_grad and param.grad is not None
+        }
+        
+        # Log weights
+        weight_norms = {
+            name: param.data.norm().item()
+            for name, param in self.model.named_parameters()
+            if param.requires_grad
+        }
+        
+        self.step_metrics.append({
+            'step': step,
+            'loss': loss.item(),
+            'grad_norms': grad_norms,
+            'weight_norms': weight_norms,
+        })
+    def save_metrics(self, filepath):
+        # Convert path to Path object for easier handling
+        save_path = Path(filepath)
+        
+        # Create directory if it doesn't exist
+        save_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        # Save the metrics using pickle
+        with open(save_path, 'wb') as f:
+            pickle.dump(self.step_metrics, f)
+        
+        print(f"Metrics saved to {save_path}")
+    
+    @classmethod
+    def load_metrics(cls, filepath):
+        # Load the metrics from file
+        with open(filepath, 'rb') as f:
+            loaded_metrics = pickle.load(f)
+        
+        # Create a new monitor instance
+        monitor = cls(model=None)  # We don't need the model for loaded metrics
+        monitor.step_metrics = loaded_metrics
+        
+        return monitor
 
 def log_message(message, level, accelerator):
     if accelerator!=None:
@@ -104,57 +157,10 @@ def log_gradients(accelerator, model, experiment, step, epoch, num_training_step
                     if param.grad is not None:
                         param_norm = param.grad.data.norm(2).item()
                         total_norm += param_norm ** 2
-                        experiment.log_metric(f"grad_norm/{name}", param_norm, step=step)
+                        #experiment.log_metric(f"grad_norm/{name}", param_norm, step=step)
                 
                 total_norm = total_norm ** 0.5
                 experiment.log_metric("total_grad_norm", total_norm, step=step)
-
-# def init_parameters(config, settings, train_dataloader):
-#     # For sparse attention 
-#     if config.attn_mechanism == "sparse":
-#         alpha_params = []
-#         for i in range(len(model.roberta.encoder.layer)):
-#             alpha_params.append(model.roberta.encoder.layer[i].attention.self.alpha)
-
-#         other_params = []
-#         for name, param in model.named_parameters():
-#             if not name.endswith('attention.self.alpha'):
-#                 other_params.append(param)
-#         optim = AdamW([
-#                 {'params': other_params, 'lr': settings["lr"]},  # Default learning rate for most parameters
-#                 {'params': alpha_params, 'lr': settings["alpha_lr"]}          # Higher learning rate for alpha
-#             ], betas=(0.9, 0.98), eps=1e-6)
-        
-#     elif (config.attn_mechanism == "adaptive") & ("adaptive_lr" in settings.keys()):
-#         adaptive_params = []
-#         for i in range(len(model.roberta.encoder.layer)):
-#             adaptive_params.append(model.roberta.encoder.layer[i].attention.self.alpha)
-
-#         other_params = []
-#         for name, param in model.named_parameters():
-#             if not name.endswith('attention.self.adaptive_mask._mask.current_val'):
-#                 other_params.append(param)
-#         optim = AdamW([
-#                 {'params': other_params, 'lr': settings["lr"]},  # Default learning rate for most parameters
-#                 {'params': adaptive_params, 'lr': settings["adaptive_lr"]}          # Higher learning rate for alpha
-#             ], betas=(0.9, 0.98), eps=1e-6)
-#     else:
-#         optim = AdamW(model.parameters(), lr=settings["lr"]) # typical range is 1e-6 to 1e-4
-    
-#     # Number of training epochs and warmup steps
-#     epochs = settings["epochs"]
-#     num_training_steps = epochs * len(train_dataloader)
-#     num_warmup_steps = int(0.06 * num_training_steps)
-
-#     # Initialize the scheduler
-#     scheduler = get_scheduler(
-#         "linear", 
-#         optimizer=optim, 
-#         num_warmup_steps=num_warmup_steps, 
-#         num_training_steps=num_training_steps
-#     )
-
-#     return optim, scheduler, epochs
 
 def main(arg_dict):
     config_dict = arg_dict["config"]
@@ -249,11 +255,12 @@ def main(arg_dict):
     )
     #dataloader = train_dataloader
 
+
     print("Beginning training process.")
     log_message("Beginning training process.", logging.WARNING, accelerator)
     
+    experiment = None
     if enable_logging:
-        experiment = None
         if enable_accelerate: 
             accelerator.init_trackers(project_name="new-attention", config = config.to_dict())
             if accelerator.is_main_process:
@@ -262,9 +269,8 @@ def main(arg_dict):
         else:
             experiment = comet_ml.Experiment(project_name="new-attention", auto_metric_step_rate=100)
             experiment.set_name(f"{settings['exp_name']}_{task}")
-
-
-
+    
+    monitor = TrainingMonitor(model)
     # Training loop
     for epoch in range(epochs):
         loop = tqdm(dataloader, leave=True)
@@ -279,6 +285,11 @@ def main(arg_dict):
             loss = outputs.loss
             #loss.backward() # again, replaced by the accelerator version
             accelerator.backward(loss)
+
+            step = i + epoch * len(loop)
+
+            monitor.log_step(batch, loss, step)
+
             optim.step()
             scheduler.step()
 
@@ -290,6 +301,19 @@ def main(arg_dict):
             if (i%100==0) & enable_logging:
                 log_metrics(accelerator, model, experiment, i, epoch, len(loop), config, loss)
                 #log_gradients(accelerator, model, experiment, i, epoch, len(loop))
+
+            if (i%5==0) & (experiment != None):
+                step = i + epoch * len(loop)
+                getlr = scheduler.get_lr()
+                experiment.log_metric("lr", getlr, step=step)
+                total_norm = 0
+                for name, param in model.named_parameters():
+                    if param.grad is not None:
+                        param_norm = param.grad.data.norm(2).item()
+                        total_norm += param_norm ** 2
+                
+                total_norm = total_norm ** 0.5
+                experiment.log_metric("total_grad_norm", total_norm, step=step)
             
         #unwrapped_model = accelerator.unwrap_model(model)
         #unwrapped_model.save_pretrained(
@@ -298,9 +322,11 @@ def main(arg_dict):
         #    save_function=accelerator.save,
         #)
     
-        if enable_logging:
+        if enable_logging :
             log_metrics(accelerator, model, experiment, i, epoch, len(loop), config, loss, print_metrics=True)
 
+    out_path = os.path.join(model_save_path, "custom_metrics.pkl")
+    monitor.save_metrics(out_path)
 
     print("Training done. Saving model.")
     log_message("Training done. Saving model.", logging.WARNING, accelerator)
@@ -311,6 +337,30 @@ def main(arg_dict):
         is_main_process=accelerator.is_main_process,
         save_function=accelerator.save,
     )
+
+    
+    # print("\n\n\n\n\nConfigs\n\nModel\n\n")
+    # print(unwrapped_model)
+    # print(model)
+    # print("\n\nOptimizer\n\n")
+    # print(optim)
+    # print("\n\nScheduler\n\n")
+    # getlr = scheduler.get_lr()
+    # print(f"get lr: {getlr}")
+    # getlastlr = scheduler.get_last_lr()
+    # print(f"get last lr: {getlastlr}")
+    # print("\n\nScheduler\n\n")
+    # getlr = scheduler.scheduler.get_lr()
+    # print(f"get lr: {getlr}")
+    # getlastlr = scheduler.scheduler.get_last_lr()
+    # print(f"get last lr: {getlastlr}")
+    # lastepoch = scheduler.scheduler.last_epoch
+    # print(f"last epoch: {lastepoch}")
+    # kw = scheduler.scheduler.lr_lambdas[0].keywords
+    # print(f"lr lambdas: {kw}")
+    # print("\n\n\n\n\n")
+
+
 
 if __name__ == "__main__":
     args = parse_arguments()

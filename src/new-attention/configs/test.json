@@ -1,0 +1,24 @@
+{
+    "config": {"max_position_embeddings": 514,
+    "hidden_size": 768,
+    "num_attention_heads": 12,
+    "num_hidden_layers": 6,
+    "type_vocab_size": 1,
+    "attn_mechanism": "eager",
+    "num_labels": 2, 
+    "position_embedding_type": "relative_key"
+    }, 
+    "settings": {
+        "task": "glue",
+        "exp_name": "test",
+        "save_path": "STORAGE_DIR/models/new-attention/roberta/hfTrainer_test",
+        "model": "FacebookAI/roberta-base",
+        "train": false, 
+        "validate": false, 
+        "evaluate": true,
+        "logging": false,
+        "epochs": 10,
+        "batch_size": 16,  
+        "lr": 1e-4
+    }
+}

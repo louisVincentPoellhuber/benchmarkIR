@@ -8,7 +8,6 @@ import argparse
 import pandas as pd
 import json
 
-import wandb
 from transformers import RobertaConfig, get_scheduler
 from roberta_config import CustomRobertaConfig
 from accelerate import Accelerator, DistributedDataParallelKwargs

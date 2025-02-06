@@ -9,7 +9,7 @@ lr=1e-4
 
 
 # Baseline
-exp_name="roberta_rpeTest"
+exp_name="investigate_old"
 
 echo Training.
 
@@ -27,8 +27,7 @@ model_config='{"max_position_embeddings": 514,
         "num_hidden_layers": 6,
         "type_vocab_size": 1,
         "attn_mechanism": "eager",
-        "num_labels": 2, 
-        "position_embedding_type": "relative_key"
+        "num_labels": 2
         }'
 
 
@@ -36,8 +35,8 @@ config='{"settings": {
             "model": "FacebookAI/roberta-base",
             "save_path": "'$model_path'",
             "tokenizer": "FacebookAI/roberta-base",
-            "dataset":"'$dataset'", 
-            "task": "glue", 
+            "dataset":"'$dataset'/cola/cola_train.pt", 
+            "task": "cola", 
             "accelerate": true,
             "logging": true,
             "exp_name": "'$exp_name'",
