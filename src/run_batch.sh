@@ -1,7 +1,7 @@
 # Update LM files to arcade
 
 rsync -avz --update /home/lvpoellhuber/projects/benchmarkIR/src arcade:~/Documents/Masters/benchmarkIR-slurm
-#rsync -avz --update  arcade:~/Documents/Masters/benchmarkIR-slurm /home/lvpoellhuber/projects/benchmarkIR/src
+# rsync -avz --update  arcade:~/Documents/Masters/benchmarkIR-slurm/src /home/lvpoellhuber/projects/benchmarkIR
 
 # Run my script
 script=generic_batch.sh

@@ -37,7 +37,7 @@ def parse_arguments():
     argparser = argparse.ArgumentParser("masked language modeling")
     argparser.add_argument('--task', default="glue") # wikipedia, glue, mlm
     argparser.add_argument('--datapath', default=DATASETS_PATH) 
-    argparser.add_argument('--tokenizer_path', default=STORAGE_DIR+"/models/custom_roberta/backups/roberta_mlm_241019")
+    argparser.add_argument('--tokenizer_path', default="FacebookAI/roberta-base")
     argparser.add_argument('--train_tokenizer', default=False) # wikipedia
     argparser.add_argument('--overwrite', default=True) # wikipedia
 
@@ -53,9 +53,9 @@ def get_tokenizer(tokenizer_path):
     
     return tokenizer
 
-def get_dataloader(batch_size, dataset_path):
+def get_dataloader(batch_size, dataset_path, train=True):
     dataset = Dataset(torch.load(dataset_path, weights_only=True))
-    dataloader = torch.utils.data.DataLoader(dataset, batch_size = batch_size, shuffle=True)
+    dataloader = torch.utils.data.DataLoader(dataset, batch_size = batch_size, shuffle=train)
     
     return dataloader
 

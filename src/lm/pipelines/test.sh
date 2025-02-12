@@ -4,12 +4,12 @@ echo Syncing...
 
 
 ################################### RoBERTa ###################################
-batch_size=32
+batch_size=64
 lr=1e-4
 
 
 # Baseline
-exp_name="roberta_rpeTest"
+exp_name="test_old no accel"
 
 echo Training.
 
@@ -27,8 +27,7 @@ model_config='{"max_position_embeddings": 514,
         "num_hidden_layers": 6,
         "type_vocab_size": 1,
         "attn_mechanism": "eager",
-        "num_labels": 2, 
-        "position_embedding_type": "relative_key"
+        "num_labels": 2
         }'
 
 
@@ -48,6 +47,7 @@ config='{"settings": {
 
         
 accelerate launch src/lm/finetune_roberta.py --config_dict "$config"
+# python src/lm/finetune_roberta.py --config_dict "$config"
 
 echo Evaluating.
 
@@ -57,6 +57,6 @@ python src/lm/metrics.py --path $model_path --config_dict "$config"
 
 
 
-rsync -avz --update --progress /Tmp/lvpoellhuber/models/finetune_roberta/ /data/rech/poellhul/models/finetune_roberta
+# rsync -avz --update --progress /Tmp/lvpoellhuber/models/finetune_roberta/ /data/rech/poellhul/models/finetune_roberta
 
-scp /data/rech/poellhul/models/finetune_roberta/experiment_df.csv ~/Downloads
+# scp /data/rech/poellhul/models/finetune_roberta/experiment_df.csv ~/Downloads

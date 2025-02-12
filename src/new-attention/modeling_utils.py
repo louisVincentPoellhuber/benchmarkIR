@@ -4,16 +4,11 @@ from preprocessing import *
 from model_custom_roberta import *
 
 import argparse
-import pandas as pd
 import json
 import datetime
+import numpy as np
 
-from transformers import RobertaConfig, get_scheduler
-from roberta_config import CustomRobertaConfig
-from accelerate import Accelerator, DistributedDataParallelKwargs
-from torch.optim import AdamW
-from datasets import load_dataset, load_metric
-import copy
+from accelerate import Accelerator
 
 import logging
 JOBID = os.getenv("SLURM_JOB_ID")
@@ -31,14 +26,15 @@ logging.basicConfig(
 import dotenv
 dotenv.load_dotenv()
 
+
+MAIN_PROCESS = Accelerator().is_main_process
+
 STORAGE_DIR = os.getenv("STORAGE_DIR")
 logging.debug(f"Saving to {STORAGE_DIR}.")
 
-def log_message(message, level, accelerator):
-    if accelerator!=None:
-        if accelerator.is_main_process:
-            logging.log(msg=message, level=level)
-    else:
+def log_message(message, level):
+    if MAIN_PROCESS:
+        print(message)
         logging.log(msg=message, level=level)
 
 def parse_arguments():
@@ -49,62 +45,24 @@ def parse_arguments():
 
     return args
 
-def log_metrics(accelerator, model, experiment, step, epoch, num_training_steps, config, loss, print_metrics=False):
-    step = step + epoch * num_training_steps
+def log_metrics(model, scheduler, optim, experiment, loss, step):
+    # Loss
+    experiment.log_metrics({"loss": loss}, step=step)
 
-    if accelerator != None:                
-        if accelerator.is_main_process:
-            model = accelerator.unwrap_model(model)
-        else:
-            experiment = None
-                
-    if experiment != None:
-        experiment.log_metrics({"loss": loss}, step=step)
+    # Learning rate
+    current_lr = scheduler.get_lr()
+    experiment.log_metric("lr", current_lr, step=step)
+
+    # Gradient norm
+    total_norm = 0
+    for name, param in model.named_parameters():
+        if param.grad is not None:
+            param_norm = param.grad.data.norm(2).item()
+            total_norm += param_norm ** 2
+    
+    total_norm = total_norm ** 0.5
+    experiment.log_metric("total_grad_norm", total_norm, step=step)
         
-        if config.attn_mechanism =="sparse":
-            log_dict = {"loss": loss}
-            for layer_nb, layer in enumerate(model.roberta.encoder.layer):
-                alphas = layer.attention.self.true_alpha.data
-                names = [f"layer_{layer_nb}/alpha_"+str(i) for i in range(len(alphas))]
-                alpha_dict = dict(zip(names, alphas))
-                if print_metrics:  
-                    print(f"Layer {layer_nb}: {alpha_dict}")
-                    log_message(f"Layer {layer_nb}: {alpha_dict}", logging.INFO, accelerator)
-
-
-                log_dict.update(alpha_dict)
-            experiment.log_metrics(log_dict, step=step)
-
-        elif config.attn_mechanism == "adaptive":
-            log_dict = {"loss": loss}
-            for layer_nb, layer in enumerate(model.roberta.encoder.layer):
-                spans = layer.attention.self.adaptive_mask._mask.attn_span.data
-                names = [f"layer_{layer_nb}/span_"+str(i) for i in range(len(spans))]
-                span_dict = dict(zip(names, spans))
-                log_dict.update(span_dict)
-
-                if print_metrics:  
-                    print(f"Layer {layer_nb}: {span_dict}")
-                    log_message(f"Layer {layer_nb}: {span_dict}", logging.INFO, accelerator)
-
-                experiment.log_metrics(log_dict, step=step)
-
-
-def log_gradients(accelerator, model, experiment, step, epoch, num_training_steps):
-    step = step + epoch * num_training_steps
-
-    if experiment != None:  
-        if accelerator != None:                
-            if accelerator.is_main_process:
-                total_norm = 0
-                for name, param in model.named_parameters():
-                    if param.grad is not None:
-                        param_norm = param.grad.data.norm(2).item()
-                        total_norm += param_norm ** 2
-                        experiment.log_metric(f"grad_norm/{name}", param_norm, step=step)
-                
-                total_norm = total_norm ** 0.5
-                experiment.log_metric("total_grad_norm", total_norm, step=step)
 
 def default_args(arg_dict):
     settings = arg_dict["settings"]
@@ -140,6 +98,7 @@ def default_args(arg_dict):
     if "optim" not in keys: settings["optim"] = "adamw_torch"
     if "auto_find_batch_size" not in keys: settings["auto_find_batch_size"] = False 
     if "resume_from_checkpoint" not in keys: settings["resume_from_checkpoint"] = None 
+    if "logging_steps" not in keys: settings["logging_steps"] = 10
 
     if ("task" not in keys) | ("exp_name" not in keys):
         raise Exception("Experiment not set up. Please provide an experiment name and a task.") 
@@ -154,7 +113,7 @@ def default_args(arg_dict):
     return arg_dict
 
 
-def compute_metrics(eval_output, arg_dict):
+def compute_metrics(metrics, arg_dict):
     # Mod
     experiment_info = {}
 
@@ -174,26 +133,12 @@ def compute_metrics(eval_output, arg_dict):
     if job_id == None: job_id = "local"
     experiment_info["job_id"] = job_id
 
-
-    print(eval_output)
     # Computing metrics
-    metrics = eval_output
-    unwanted_keys = ["eval_loss", "eval_model_preparation_time", "eval_runtime", "eval_samples_per_second", "eval_steps_per_second"]
-    for key in unwanted_keys: 
-        if key in metrics.keys():
-            metrics.pop(key)
-    metrics = {k[len("eval_"):] if k.startswith("eval_") else k: v for k, v in metrics.items()}
-    
+    metrics = {key:np.mean(metrics[key]) for key in metrics.keys()}
     experiment_info["metrics"] = metrics
-
-
-    #metrics_df = pd.DataFrame(experiment_info.values(), index = experiment_info.keys(), columns = [arg_dict["settings"]["exp_name"]]).T
-
-    #experiment_df = pd.concat([experiment_df, metrics_df])
     
     #/storage/models/main_branch/model_type/experiment/dataset/...
     experiments_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(arg_dict["settings"]["save_path"]))), "experiments.json")
-    #experiment_df.to_csv(experiment_df_path)
 
     if not os.path.exists(experiments_path):
         with open(experiments_path, "a+") as fp:

@@ -1,11 +1,9 @@
 dataset=$STORAGE_DIR'/datasets'
-batch_size=32
+batch_size=64
 lr=1e-4
 
-
-
 # Baseline
-exp_name="test"
+exp_name="customscript_baseline"
 
 echo Training.
 
@@ -28,14 +26,14 @@ model_config='{"max_position_embeddings": 514,
 
 
 config='{"settings": {
-        "task": "cola",
+        "task": "glue",
         "exp_name": "'$exp_name'",
         "save_path": "'$model_path'",
         "model": "FacebookAI/roberta-base",
         "train": true, 
         "validate": false, 
         "evaluate": false,
-        "logging": false,
+        "logging": true,
         "epochs": 10,
         "batch_size": '$batch_size',  
         "lr": '$lr'
@@ -43,8 +41,8 @@ config='{"settings": {
         "config":'$model_config'}'
 
         
-#accelerate launch src/new-attention/finetune_glue.py --config_dict "$config"
-python src/new-attention/finetune_glue.py --config_dict "$config"
+accelerate launch src/new-attention/finetune_glue.py --config_dict "$config"
+#python src/new-attention/finetune_glue.py --config_dict "$config"
 
 # The following changes train = True to train = False, as well as 
 # evaluate = False to evaluate = True. Validate is not modified as it doesn't directly impact the script. 
@@ -54,6 +52,6 @@ echo $config
 # This has to be launched from Python instead of accelerate. 
 python src/new-attention/finetune_glue.py --config_dict "$config"
 
-rsync -avz --update --progress /Tmp/lvpoellhuber/models/finetune_roberta/ /data/rech/poellhul/models/finetune_roberta
+# rsync -avz --update --progress /Tmp/lvpoellhuber/models/finetune_roberta/ /data/rech/poellhul/models/finetune_roberta
 
-scp /data/rech/poellhul/models/finetune_roberta/experiment_df.csv ~/Downloads
+# scp /data/rech/poellhul/models/finetune_roberta/experiment_df.csv ~/Downloads

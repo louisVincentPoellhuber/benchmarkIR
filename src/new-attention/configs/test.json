@@ -5,20 +5,19 @@
     "num_hidden_layers": 6,
     "type_vocab_size": 1,
     "attn_mechanism": "eager",
-    "num_labels": 2, 
-    "position_embedding_type": "relative_key"
+    "num_labels": 2
     }, 
     "settings": {
         "task": "glue",
-        "exp_name": "test",
-        "save_path": "STORAGE_DIR/models/new-attention/roberta/hfTrainer_test",
+        "exp_name": "customscript_baseline",
+        "save_path": "STORAGE_DIR/models/new-attention/roberta/customscript_baseline",
         "model": "FacebookAI/roberta-base",
         "train": false, 
         "validate": false, 
         "evaluate": true,
-        "logging": false,
-        "epochs": 10,
-        "batch_size": 16,  
+        "logging": true,
+        "epochs": 1,
+        "batch_size": 64,  
         "lr": 1e-4
     }
 }

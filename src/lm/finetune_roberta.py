@@ -381,7 +381,8 @@ if __name__ == "__main__":
 
     if original_arg_dict["settings"]["task"]=="glue":
         #tasks = ["cola", "mnli", "mrpc", "qnli", "qqp", "rte", "sst2", "wnli"]
-        tasks = ["cola", "mrpc", "rte", "sst2", "wnli", "qnli"]
+        # tasks = ["cola", "mrpc", "rte", "sst2", "wnli", "qnli"]
+        tasks = ["rte"]
 
         for task in tasks:
             print(f"============ Processing {task} ============")
