@@ -1,9 +1,9 @@
 echo Syncing...
-#rsync -avz --update --progress /data/rech/poellhul/models/finetune_roberta/ /Tmp/lvpoellhuber/models/finetune_roberta
+#rsync -avz --update --progress /data/rech/poellhul/models/new-attention/ /Tmp/lvpoellhuber/models/new-attention
 
 
 ################################### RoBERTa ###################################
-batch_size=44
+batch_size=64
 lr=1e-4
 
 # Baseline
@@ -11,7 +11,7 @@ exp_name="roberta_ape"
 
 echo Training.
 
-model_path=$STORAGE_DIR'/models/finetune_roberta/roberta/'$exp_name
+model_path=$STORAGE_DIR'/models/new-attention/roberta/'$exp_name
 echo $model_path
 if [[ ! -d $model_path ]]; then
   mkdir -p $model_path
@@ -36,7 +36,7 @@ config='{"settings": {
         "train": true, 
         "validate": false, 
         "evaluate": false,
-        "logging": false,
+        "logging": true,
         "epochs": 10,
         "batch_size": '$batch_size',  
         "lr": '$lr'
@@ -60,7 +60,7 @@ exp_name="roberta_rpeK"
 
 echo Training.
 
-model_path=$STORAGE_DIR'/models/finetune_roberta/roberta/'$exp_name
+model_path=$STORAGE_DIR'/models/new-attention/roberta/'$exp_name
 echo $model_path
 if [[ ! -d $model_path ]]; then
   mkdir -p $model_path
@@ -87,7 +87,7 @@ config='{"settings": {
         "train": true, 
         "validate": false, 
         "evaluate": false,
-        "logging": false,
+        "logging": true,
         "epochs": 10,
         "batch_size": '$batch_size',  
         "lr": '$lr'
@@ -111,7 +111,7 @@ exp_name="roberta_rpeKQ"
 
 echo Training.
 
-model_path=$STORAGE_DIR'/models/finetune_roberta/roberta/'$exp_name
+model_path=$STORAGE_DIR'/models/new-attention/roberta/'$exp_name
 echo $model_path
 if [[ ! -d $model_path ]]; then
   mkdir -p $model_path
@@ -138,7 +138,7 @@ config='{"settings": {
         "train": true, 
         "validate": false, 
         "evaluate": false,
-        "logging": false,
+        "logging": true,
         "epochs": 10,
         "batch_size": '$batch_size',  
         "lr": '$lr'
@@ -158,7 +158,6 @@ echo $config
 python src/new-attention/finetune_glue.py --config_dict "$config"
 
 
+# rsync -avz --update --progress /Tmp/lvpoellhuber/models/new-attention/ /data/rech/poellhul/models/new-attention
 
-rsync -avz --update --progress /Tmp/lvpoellhuber/models/finetune_roberta/ /data/rech/poellhul/models/finetune_roberta
-
-scp /data/rech/poellhul/models/finetune_roberta/experiment_df.csv ~/Downloads
+# scp /data/rech/poellhul/models/new-attention/experiment_df.csv ~/Downloads

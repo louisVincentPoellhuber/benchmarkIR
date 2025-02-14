@@ -7,10 +7,15 @@ rsync -avz --update /home/lvpoellhuber/projects/benchmarkIR/src arcade:~/Documen
 script=generic_batch.sh
 
 
-if [[ "$1" == "octal30" || "$1" == "octal31" ]]; then
+if [[ "$1" == "octal30" ]]; then
     gpu="rtx_a5000"
+    part="02"
+elif [[ "$1" == "octal31" ]]; then
+    gpu="rtx_a5000"
+    part="01"
 elif [[ "$1" == "octal40" ]]; then
     gpu="ls40"
+    part="01"
 else
     echo "Unknown computer: $1."
     exit 1  # Exit with an error if the computer is not recognized
@@ -22,9 +27,10 @@ echo "
 |
 | Computer: $1
 | GPU: $gpu
+| Storage part: $part
 |"
 
 
 # Sent to SSH
-ssh arcade "cd ~/Documents/Masters/benchmarkIR-slurm; sbatch --gres=gpu:"$gpu":4 --nodelist="$1" src/slurm/"$script" "$2
+ssh arcade "cd ~/Documents/Masters/benchmarkIR-slurm; sbatch --gres=gpu:"$gpu":4 --nodelist="$1" src/slurm/"$script" "$2" "$part
 

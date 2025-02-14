@@ -4,12 +4,12 @@ echo Syncing...
 
 
 ################################### RoBERTa ###################################
-batch_size=64
+batch_size=44
 lr=1e-4
 
 
 # Baseline
-exp_name="test_old no accel"
+exp_name="test_old four gpu"
 
 echo Training.
 
@@ -46,7 +46,7 @@ config='{"settings": {
         "config":'$model_config'}'
 
         
-accelerate launch src/lm/finetune_roberta.py --config_dict "$config"
+# accelerate launch src/lm/finetune_roberta.py --config_dict "$config"
 # python src/lm/finetune_roberta.py --config_dict "$config"
 
 echo Evaluating.

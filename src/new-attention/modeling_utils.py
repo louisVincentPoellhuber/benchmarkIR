@@ -113,7 +113,7 @@ def default_args(arg_dict):
     return arg_dict
 
 
-def compute_metrics(metrics, arg_dict):
+def compute_metrics(eval_output, arg_dict):
     # Mod
     experiment_info = {}
 
@@ -134,8 +134,15 @@ def compute_metrics(metrics, arg_dict):
     experiment_info["job_id"] = job_id
 
     # Computing metrics
-    metrics = {key:np.mean(metrics[key]) for key in metrics.keys()}
+    metrics = eval_output
+    unwanted_keys = ["eval_loss", "eval_model_preparation_time", "eval_runtime", "eval_samples_per_second", "eval_steps_per_second"]
+    for key in unwanted_keys: 
+        if key in metrics.keys():
+            metrics.pop(key)
+    metrics = {k[len("eval_"):] if k.startswith("eval_") else k: v for k, v in metrics.items()}
+    
     experiment_info["metrics"] = metrics
+    log_message(f"Evaluation metrics: {metrics}", logger.WARNING)
     
     #/storage/models/main_branch/model_type/experiment/dataset/...
     experiments_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(arg_dict["settings"]["save_path"]))), "experiments.json")

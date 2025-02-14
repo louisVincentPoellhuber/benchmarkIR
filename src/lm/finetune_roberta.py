@@ -330,7 +330,7 @@ def main(arg_dict):
 
     print("Training done. Saving model.")
     log_message("Training done. Saving model.", logging.WARNING, accelerator)
-    accelerator.end_training()
+    #accelerator.end_training()
     unwrapped_model = accelerator.unwrap_model(model)
     unwrapped_model.save_pretrained(
         model_save_path, # used to be model_path
@@ -381,8 +381,8 @@ if __name__ == "__main__":
 
     if original_arg_dict["settings"]["task"]=="glue":
         #tasks = ["cola", "mnli", "mrpc", "qnli", "qqp", "rte", "sst2", "wnli"]
-        # tasks = ["cola", "mrpc", "rte", "sst2", "wnli", "qnli"]
-        tasks = ["rte"]
+        tasks = ["cola", "mrpc", "rte", "sst2", "wnli", "qnli"]
+        # tasks = ["rte"]
 
         for task in tasks:
             print(f"============ Processing {task} ============")

@@ -3,7 +3,7 @@ batch_size=64
 lr=1e-4
 
 # Baseline
-exp_name="customscript_baseline"
+exp_name="customscript_debug"
 
 echo Training.
 
@@ -26,7 +26,7 @@ model_config='{"max_position_embeddings": 514,
 
 
 config='{"settings": {
-        "task": "glue",
+        "task": "cola",
         "exp_name": "'$exp_name'",
         "save_path": "'$model_path'",
         "model": "FacebookAI/roberta-base",
@@ -41,7 +41,7 @@ config='{"settings": {
         "config":'$model_config'}'
 
         
-accelerate launch src/new-attention/finetune_glue.py --config_dict "$config"
+NCCL_DEBUG=INFO accelerate launch src/new-attention/finetune_glue-trainer.py --config_dict "$config"
 #python src/new-attention/finetune_glue.py --config_dict "$config"
 
 # The following changes train = True to train = False, as well as 

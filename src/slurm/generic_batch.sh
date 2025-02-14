@@ -1,11 +1,11 @@
 #!/bin/bash -l
 
 #SBATCH --partition=rali
-#SBATCH --cpus-per-task=2
 #SBATCH --verbose
-#SBATCH --mem=20G
+#SBATCH --cpus-per-task=32
+#SBATCH --mem=64G
 
-STORAGE_DIR=/Tmp/lvpoellhuber
+STORAGE_DIR=/part/$2/Tmp/lvpoellhuber
 
 echo $STORAGE_DIR
 
@@ -20,9 +20,7 @@ export COMET_PROJECT_NAME=new-attention
 cd Documents/Masters/benchmarkIR
 
 # Change the pipeline or script to the one you wanna run
-#bash src/lm/pipelines/finetune_paramsearch.sh     
 set -x
 bash src/new-attention/pipelines/$1     
 
-#python src/lm/preprocessing.py --task glue --overwrite True
 

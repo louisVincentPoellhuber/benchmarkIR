@@ -170,9 +170,8 @@ if __name__ == "__main__":
     log_message(f"Model Configuration: {original_arg_dict}", logging.INFO, None)
 
     if original_arg_dict["settings"]["task"]=="glue":
-        #tasks = ["cola", "mnli", "mrpc", "qnli", "qqp", "rte", "sst2", "wnli"]        
-        tasks = ["qnli"]
-        #tasks = ["cola", "mrpc", "rte", "wnli"]
+        #tasks = ["cola", "mnli", "mrpc", "qnli", "qqp", "rte", "sst2", "wnli"]  
+        tasks = ["cola", "mrpc", "rte", "sst2", "wnli", "qnli"]
 
         for task in tasks:
             print(f"============ Processing {task} ============")
