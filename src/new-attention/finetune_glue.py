@@ -27,6 +27,12 @@ logging.basicConfig(
     level = logging.INFO
     )
 
+
+job_computer = os.getenv("SLURM_NODELIST")
+if job_computer == None: job_computer = "local"
+log_message(f"Computer: {job_computer}")
+log_message(f"Slurm Job ID: {JOBID}")
+
 def main(arg_dict):
     config_dict = arg_dict["config"]
     settings = arg_dict["settings"]
@@ -80,7 +86,7 @@ def main(arg_dict):
         report_to="comet_ml",
         logging_steps=5, 
         # seed=seed
-        max_grad_norm=100#, The grad norm is set so high to avoid gradient clipping. However, disabling it with 0 or None prevents comet from logging the Grad norm, hence the 100. 
+        # max_grad_norm=100#, The grad norm is set so high to avoid gradient clipping. However, disabling it with 0 or None prevents comet from logging the Grad norm, hence the 100. 
         # ddp_backend="nccl",
         # ddp_find_unused_parameters=True
 
@@ -227,7 +233,7 @@ if __name__ == "__main__":
 
     if original_arg_dict["settings"]["task"]=="glue":
         #tasks = ["cola", "mnli", "mrpc", "qnli", "qqp", "rte", "sst2", "wnli"]
-        tasks = ["cola", "mrpc", "rte"]#, "sst2", "wnli", "qnli"]
+        tasks = ["cola", "mrpc", "rte", "sst2", "wnli", "qnli"]
 
         #  We need the For for each task
         for task in tasks:

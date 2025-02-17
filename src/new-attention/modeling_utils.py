@@ -32,7 +32,7 @@ MAIN_PROCESS = Accelerator().is_main_process
 STORAGE_DIR = os.getenv("STORAGE_DIR")
 logging.debug(f"Saving to {STORAGE_DIR}.")
 
-def log_message(message, level):
+def log_message(message, level=logging.WARNING):
     if MAIN_PROCESS:
         print(message)
         logging.log(msg=message, level=level)
@@ -139,10 +139,10 @@ def compute_metrics(eval_output, arg_dict):
     for key in unwanted_keys: 
         if key in metrics.keys():
             metrics.pop(key)
-    metrics = {k[len("eval_"):] if k.startswith("eval_") else k: v for k, v in metrics.items()}
+    metrics = {(key[len("eval_"):]) if key.startswith("eval_") else key: value for key, value in metrics.items()}
     
     experiment_info["metrics"] = metrics
-    log_message(f"Evaluation metrics: {metrics}", logger.WARNING)
+    log_message(f"Evaluation metrics: {metrics}", logging.WARNING)
     
     #/storage/models/main_branch/model_type/experiment/dataset/...
     experiments_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(arg_dict["settings"]["save_path"]))), "experiments.json")

@@ -7,7 +7,7 @@ batch_size=44
 lr=1e-4
 
 # Baseline
-exp_name="roberta_ape"
+exp_name="roberta_ape-custom"
 
 echo Training.
 
@@ -43,8 +43,8 @@ config='{"settings": {
         },
         "config":'$model_config'}'
 
-# accelerate launch src/new-attention/finetune_glue.py --config_dict "$config"
-#python src/new-attention/finetune_glue.py --config_dict "$config"
+# accelerate launch src/new-attention/finetune_glue-custom.py --config_dict "$config"
+#python src/new-attention/finetune_glue-custom.py --config_dict "$config"
 
 # The following changes train = True to train = False, as well as 
 # evaluate = False to evaluate = True. Validate is not modified as it doesn't directly impact the script. 
@@ -52,11 +52,11 @@ config=$(echo "$config" | sed -e 's/"evaluate": false/"evaluate": true/' -e 's/"
 echo $config
 
 # This has to be launched from Python instead of accelerate. 
-python src/new-attention/finetune_glue.py --config_dict "$config"
+python src/new-attention/finetune_glue-custom.py --config_dict "$config"
 
 
 # Baseline
-exp_name="roberta_rpeK"
+exp_name="roberta_rpeK-custom"
 
 echo Training.
 
@@ -95,8 +95,8 @@ config='{"settings": {
         "config":'$model_config'}'
 
       
-accelerate launch src/new-attention/finetune_glue.py --config_dict "$config"
-#python src/new-attention/finetune_glue.py --config_dict "$config"
+# accelerate launch src/new-attention/finetune_glue-custom.py --config_dict "$config"
+#python src/new-attention/finetune_glue-custom.py --config_dict "$config"
 
 # The following changes train = True to train = False, as well as 
 # evaluate = False to evaluate = True. Validate is not modified as it doesn't directly impact the script. 
@@ -104,10 +104,10 @@ config=$(echo "$config" | sed -e 's/"evaluate": false/"evaluate": true/' -e 's/"
 echo $config
 
 # This has to be launched from Python instead of accelerate. 
-python src/new-attention/finetune_glue.py --config_dict "$config"
+python src/new-attention/finetune_glue-custom.py --config_dict "$config"
 
 # Baseline
-exp_name="roberta_rpeKQ"
+exp_name="roberta_rpeKQ-custom"
 
 echo Training.
 
@@ -146,8 +146,8 @@ config='{"settings": {
         "config":'$model_config'}'
 
 
-#accelerate launch src/new-attention/finetune_glue.py --config_dict "$config"
-python src/new-attention/finetune_glue.py --config_dict "$config"
+# accelerate launch src/new-attention/finetune_glue-custom.py --config_dict "$config"
+# python src/new-attention/finetune_glue-custom.py --config_dict "$config"
 
 # The following changes train = True to train = False, as well as 
 # evaluate = False to evaluate = True. Validate is not modified as it doesn't directly impact the script. 
@@ -155,7 +155,7 @@ config=$(echo "$config" | sed -e 's/"evaluate": false/"evaluate": true/' -e 's/"
 echo $config
 
 # This has to be launched from Python instead of accelerate. 
-python src/new-attention/finetune_glue.py --config_dict "$config"
+python src/new-attention/finetune_glue-custom.py --config_dict "$config"
 
 
 # rsync -avz --update --progress /Tmp/lvpoellhuber/models/new-attention/ /data/rech/poellhul/models/new-attention
