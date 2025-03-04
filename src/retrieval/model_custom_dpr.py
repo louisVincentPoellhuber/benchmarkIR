@@ -156,10 +156,7 @@ class DPREncoder(DPRPreTrainedModel):
 
     def __init__(self, config: DPRConfig):
         super().__init__(config)
-        if config.pretrained:
-            self.roberta_model = CustomRobertaModel(config)
-        else:
-            self.roberta_model = CustomRobertaModel.from_pretrained(config.name_or_path, config=config)
+        self.roberta_model = CustomRobertaModel.from_pretrained(config.name_or_path, config=config)
         if self.roberta_model.config.hidden_size <= 0:
             raise ValueError("Encoder hidden_size can't be zero")
         self.max_position_embeddings = config.max_position_embeddings
@@ -669,21 +666,22 @@ class CustomDPR:
         self.q_model = DPRQuestionEncoder.from_pretrained(model_path[0], config=config)
         self.q_tokenizer = AutoTokenizer.from_pretrained(model_path[0])
         self.q_model.to(self.device)
-        if self.config.train:
-            print("training mode")
-            self.q_model.train()
-        else:
-            print("eval mode")
-            self.q_model.eval()
-        
+
         # Context tokenizer and model
         self.ctx_model = DPRContextEncoder.from_pretrained(model_path[1], config=config)
         self.ctx_tokenizer = AutoTokenizer.from_pretrained(model_path[1])
         self.ctx_model.to(self.device)
+        
         if self.config.train:
+            print("training mode")
+            self.q_model.train()
             self.ctx_model.train()
         else:
+            print("eval mode")
+            self.q_model.eval()
             self.ctx_model.eval()
+        
+
     
     def encode_queries(self, queries: List[str], batch_size: int = 16, **kwargs) -> torch.Tensor:
         query_embeddings = []
@@ -694,7 +692,6 @@ class CustomDPR:
                 query_embeddings += model_out.pooler_output
         else:
             with torch.no_grad():
-            #print(batch_size)
                 for start_idx in range(0, len(queries), batch_size):
                     encoded = self.q_tokenizer(queries[start_idx:start_idx+batch_size], truncation=True, padding=True, return_tensors='pt', max_length=self.config.max_position_embeddings-2).to(self.device)
                     model_out = self.q_model(encoded['input_ids'], attention_mask=encoded['attention_mask'])
@@ -711,23 +708,15 @@ class CustomDPR:
                 texts = [row['text']  for row in corpus[start_idx:start_idx+batch_size]]
                 encoded = self.ctx_tokenizer(titles, texts, truncation=True, padding=True, return_tensors='pt', max_length=self.config.max_position_embeddings-2).to(self.device)
                 model_out = self.ctx_model(encoded['input_ids'], attention_mask=encoded['attention_mask'])
-                if self.config.train:
-                    corpus_embeddings += model_out.pooler_output
-                else:
-                    corpus_embeddings += model_out.pooler_output.detach()
-                    
+                corpus_embeddings += model_out.pooler_output                    
         else:
             with torch.no_grad():
-            #print(batch_size)
                 for start_idx in range(0, len(corpus), batch_size):
                     titles = [row['title'] for row in corpus[start_idx:start_idx+batch_size]]
                     texts = [row['text']  for row in corpus[start_idx:start_idx+batch_size]]
                     encoded = self.ctx_tokenizer(titles, texts, truncation=True, padding=True, return_tensors='pt', max_length=self.config.max_position_embeddings-2).to(self.device)
                     model_out = self.ctx_model(encoded['input_ids'], attention_mask=encoded['attention_mask'])
-                    if self.config.train:
-                        corpus_embeddings += model_out.pooler_output
-                    else:
-                        corpus_embeddings += model_out.pooler_output.detach()
+                    corpus_embeddings += model_out.pooler_output.detach()
 
         
         return torch.stack(corpus_embeddings)

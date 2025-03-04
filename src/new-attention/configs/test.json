@@ -12,12 +12,12 @@
         "exp_name": "customscript_baseline",
         "save_path": "STORAGE_DIR/models/new-attention/roberta/customscript_baseline",
         "model": "FacebookAI/roberta-base",
-        "train": false, 
+        "train": true, 
         "validate": false, 
-        "evaluate": true,
+        "evaluate": false,
         "logging": true,
         "epochs": 1,
-        "batch_size": 64,  
+        "batch_size": 32,  
         "lr": 1e-4
     }
 }

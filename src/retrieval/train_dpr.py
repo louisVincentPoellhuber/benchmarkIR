@@ -91,7 +91,7 @@ if __name__ == "__main__":
     if len(args.config_dict)>0:
         arg_dict = json.loads(args.config_dict)
     else:   
-        config_path = os.path.join("/u/poellhul/Documents/Masters/benchmarkIR/src/retrieval/configs", args.config+"_paired.json")
+        config_path = os.path.join("/u/poellhul/Documents/Masters/benchmarkIR-slurm/src/retrieval/configs", args.config+"_paired.json")
         with open(config_path) as fp: arg_dict = json.load(fp)
 
     
@@ -165,7 +165,7 @@ if __name__ == "__main__":
             optim.zero_grad()
             
             queries = batch["queries"]
-            docs = batch["docs"]
+            docs = batch["documents"]
 
             q_embeddings = model.encode_queries(queries) # All three 16x512
             ctx_embeddings = model.encode_corpus(docs) # All three 16x512

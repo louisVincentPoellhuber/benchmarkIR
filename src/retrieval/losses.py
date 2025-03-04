@@ -7,7 +7,7 @@ from sentence_transformers.util import cos_sim, dot_score, euclidean_sim
 
 cross_entropy = nn.CrossEntropyLoss()
 
-def contrastive_loss(q_embeddings, ctx_embeddings, scale = 20.0):
+def contrastive_loss(q_embeddings, ctx_embeddings, scale = 1):
 
     scores = dot_score(q_embeddings, ctx_embeddings) * scale
 

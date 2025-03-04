@@ -1,6 +1,5 @@
 import comet_ml
 
-from preprocessing import *
 from model_custom_roberta import *
 
 import argparse
@@ -9,7 +8,7 @@ import datetime
 import numpy as np
 
 from accelerate import Accelerator
-
+import os
 import logging
 JOBID = os.getenv("SLURM_JOB_ID")
 if JOBID == None: JOBID = "local"

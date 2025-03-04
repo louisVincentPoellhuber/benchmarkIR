@@ -1,8 +1,7 @@
 import comet_ml
 
 from modeling_utils import *
-from preprocessing import get_tokenizer, get_dataloader
-from tqdm import tqdm
+
 import json
 import random
 from transformers import get_scheduler
@@ -16,17 +15,15 @@ import evaluate
 import numpy as np
 from dataclasses import replace
 import logging
-
-# TODO:  Remove
-# print(f"|  Is cuda available: {torch.cuda.is_available()}")
-# print(f"|  Device count: {torch.cuda.device_count()}")
-# print(f"|  Device name 0: {torch.cuda.get_device_name(0)}")
-# print(f"|  CUDA version: {torch.version.cuda}")
-# print(f"|  cuDNN version: {torch.backends.cudnn.version()}")
-# print("|  Default dtype:", torch.get_default_dtype())
-# print("|  Supported dtypes:", torch.cuda.get_device_capability())
-# print("|  AMP enabled:", torch.cuda.is_bf16_supported())  # Checks if BF16 is available
-# print("|  Default AMP dtype:", torch.get_autocast_gpu_dtype()) 
+print(f"|  Is cuda available: {torch.cuda.is_available()}")
+print(f"|  Device count: {torch.cuda.device_count()}")
+print(f"|  Device name 0: {torch.cuda.get_device_name(0)}")
+print(f"|  CUDA version: {torch.version.cuda}")
+print(f"|  cuDNN version: {torch.backends.cudnn.version()}")
+print("|  Default dtype:", torch.get_default_dtype())
+print("|  Supported dtypes:", torch.cuda.get_device_capability())
+print("|  AMP enabled:", torch.cuda.is_bf16_supported())  # Checks if BF16 is available
+print("|  Default AMP dtype:", torch.get_autocast_gpu_dtype()) 
 
 JOBID = os.getenv("SLURM_JOB_ID")
 if JOBID == None: JOBID = "local"
@@ -39,11 +36,6 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M",
     level = logging.INFO
     )
-
-job_computer = os.getenv("SLURM_NODELIST")
-if job_computer == None: job_computer = "local"
-log_message(f"Computer: {job_computer}")
-log_message(f"Slurm Job ID: {JOBID}")
 
 def main(arg_dict, accelerator):
     config_dict = arg_dict["config"]
@@ -164,6 +156,7 @@ def main(arg_dict, accelerator):
                 input_ids = batch["input_ids"]#.to(device) # already taken care of by Accelerator
                 mask = batch["attention_mask"]#.to(device) # REMOVE COMMENTS IF U REMOVE ACCELERATOR
                 labels = batch["labels"]#.to(device)
+                print(f"\n{input_ids.device}\n")
                 step += 1 # Useful for logging
 
                 # Initialize gradients
@@ -273,12 +266,12 @@ def main(arg_dict, accelerator):
                     metrics[key].append(total_performance[key])
 
 
+
         log_message("Evaluating done. Computing metrics.", logging.WARNING)
 
-        metrics = {key:np.mean(metrics[key]) for key in metrics.keys()}
         compute_metrics(metrics, arg_dict)
 
-        log_message("Metrics saved. Have a nice day :)\n", logging.WARNING)
+        log_message("Metrics saved. Have a nice day :)\n\n\n", logging.WARNING)
     
 
 

@@ -1,14 +1,15 @@
 {
     "settings": {
-        "q_model": "facebook-dpr-question_encoder-single-nq-base",
-        "ctx_model": "facebook/dpr-ctx_encoder-single-nq-base",
+        "q_model": "google-bert/bert-base-uncased",
+        "doc_model": "google-bert/bert-base-uncased",
         "save_path": "STORAGE_DIR/models/new-attention/dpr/test",
-        "tokenizer": "facebook-dpr-question_encoder-single-nq-base", 
-        "dataset":"STORAGE_DIR/datasets/dprqa/train.pt", 
+        "tokenizer": "facebook/dpr-ctx_encoder-single-nq-base", 
+        "dataset":"STORAGE_DIR/datasets/nq/train_triplets.pt", 
         "accelerate": true,
         "logging": true,
-        "exp_name": "dpr_test",
-        "task": "dprqa", 
+        "exp_name": "test",
+        "task": "nq", 
+        "negatives": false,
         "epochs": 5,
         "batch_size": 32, 
         "lr": 1e-5

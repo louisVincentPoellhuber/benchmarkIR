@@ -1,5 +1,5 @@
 echo Syncing...
-#rsync -avz --update --progress /data/rech/poellhul/models/new-attention/ /Tmp/lvpoellhuber/models/new-attention
+rsync -avz --update --progress /data/rech/poellhul/models/new-attention/ $STORAGE_DIR/models/new-attention
 
 
 ################################### RoBERTa ###################################
@@ -157,7 +157,5 @@ echo $config
 # This has to be launched from Python instead of accelerate. 
 python src/new-attention/finetune_glue-custom.py --config_dict "$config"
 
+rsync -avz --update --progress $STORAGE_DIR/models/new-attention/ /data/rech/poellhul/models/new-attention
 
-# rsync -avz --update --progress /Tmp/lvpoellhuber/models/new-attention/ /data/rech/poellhul/models/new-attention
-
-# scp /data/rech/poellhul/models/new-attention/experiment_df.csv ~/Downloads
