@@ -13,8 +13,12 @@ from torch import Tensor
 from tqdm.autonotebook import trange
 from transformers import AutoModel, AutoTokenizer
 
+import json
+
 from beir.retrieval.models.pooling import cls_pooling, eos_pooling, mean_pooling
 from beir.retrieval.models.util import extract_corpus_sentences
+
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -141,7 +145,7 @@ class BiEncoder:
 
         context_manager = torch.no_grad() if not self.q_model.training else torch.enable_grad()
         with context_manager:
-            for start_idx in trange(0, len(queries), batch_size):
+            for start_idx in range(0, len(queries), batch_size):
                 sub_queries = [self.query_prefix + query for query in queries[start_idx : start_idx + batch_size]]
                 if self.append_eos_token:
                     query_input = self._append_eos_token(sub_queries)
@@ -202,3 +206,58 @@ class BiEncoder:
     def eval(self):
         self.q_model.eval()
         self.doc_model.eval()
+
+    def save_pretrained(self, save_path: str, is_main_process = True, save_function = torch.save):
+        os.makedirs(save_path, exist_ok=True)
+
+        self.q_model.save_pretrained(os.path.join(save_path, "q_model"), is_main_process=is_main_process, save_function=save_function)
+
+        if self.q_model is not self.doc_model:
+            self.doc_model.save_pretrained(os.path.join(save_path, "doc_model"), is_main_process=is_main_process, save_function=save_function)
+
+        self.tokenizer.save_pretrained(save_path)
+
+        config = {
+            "max_length": self.max_length,
+            "sep": self.sep,
+            "pooling": self.pooling_func.__name__.replace("_pooling", ""),
+            "normalize": self.normalize,
+            "append_eos_token": self.append_eos_token,
+            "query_prefix": self.query_prefix,
+            "doc_prefix": self.doc_prefix,
+            "shared_encoder": self.q_model is self.doc_model,  # Store if encoders are shared
+        }
+        with open(os.path.join(save_path, "config.json"), "w") as f:
+            json.dump(config, f)
+
+    @classmethod
+    def from_pretrained(cls, load_path: str):
+        """Load the bi-encoder model, tokenizer, and config."""
+        with open(os.path.join(load_path, "config.json"), "r") as f:
+            config = json.load(f)
+
+        # Load tokenizer
+        tokenizer = AutoTokenizer.from_pretrained(load_path)
+
+        # Load models
+        if config["shared_encoder"]:
+            q_model = AutoModel.from_pretrained(os.path.join(load_path, "q_model"))
+            doc_model = q_model  # Share the same model
+        else:
+            q_model = AutoModel.from_pretrained(os.path.join(load_path, "q_model"))
+            doc_model = AutoModel.from_pretrained(os.path.join(load_path, "doc_model"))
+
+        # Create instance
+        instance = cls(
+            model_path=None,  # We manually set models, so model_path is not needed
+            max_length=config["max_length"],
+            sep=config["sep"],
+            pooling=config["pooling"],
+            normalize=config["normalize"],
+            append_eos_token=config["append_eos_token"],
+            prompts={"query": config["query_prefix"], "passage": config["doc_prefix"]},
+        )
+        instance.q_model = q_model
+        instance.doc_model = doc_model
+        instance.tokenizer = tokenizer
+        return instance

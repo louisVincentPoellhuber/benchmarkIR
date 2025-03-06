@@ -1,0 +1,24 @@
+{
+    "settings": {
+        "train": true,
+        "task": "nq", 
+        "exp_name": "test2",
+        "save_path": "STORAGE_DIR/models/new-attention/dpr/test2",
+        "negatives": true,
+        "logging": true,
+        "accelerate": true,
+        "epochs": 5,
+        "batch_size": 8, 
+        "lr": 1e-5
+    }, 
+    "config": {
+        "q_model": "google-bert/bert-base-uncased",
+        "doc_model": "google-bert/bert-base-uncased",
+        "shared_encoder": false,
+        "normalize": true, 
+        "attn_implementation": "eager", 
+        "query_prompt": "query: ",
+        "passage_prompt": "passage: ", 
+        "sep": " "
+    }
+}

@@ -1,0 +1,20 @@
+{
+    "settings": {
+        "model": "STORAGE_DIR/models/custom_roberta/dpr/roberta_dpr",
+        "dataset":null,
+        "task": "hotpotqa",
+        "batch_size": 32
+    },
+    "config": {
+        "vocab_size": 32,
+        "max_position_embeddings": 512,
+        "hidden_size": 768,
+        "num_attention_heads": 12,
+        "num_hidden_layers": 6,
+        "type_vocab_size": 1,
+        "attn_mechanism": "eager",
+        "_attn_implementation_internal": "eager", 
+        "train": false,
+        "pretrained": false
+    }
+}

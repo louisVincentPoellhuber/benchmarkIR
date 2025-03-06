@@ -15,6 +15,7 @@ import argparse
 import json
 
 from modeling_utils import *
+from beir.retrieval.models import HuggingFace
 
 import torch
 
@@ -44,30 +45,52 @@ def evaluate_dpr(arg_dict):
     device = "cpu"
 
     settings = arg_dict["settings"]
+    config_dict = arg_dict["config"]
 
     # Main arguments
     dpr_path = settings["save_path"]
     batch_size = settings["batch_size"]
     task = settings["task"]
     
-    q_model_path = settings["q_model"]
-    doc_model_path = settings["doc_model"]
+    q_model_path = config_dict["q_model"]
+    doc_model_path = config_dict["doc_model"]
 
     if not os.path.exists(dpr_path):
         os.mkdir(dpr_path)
     
     # dpr_model = CustomDPR.from_pretrained(model_path=dpr_path, device=device)
-    #dpr_model = SentenceBERT(model_path = (q_model_path, doc_model_path), sep=" [SEP] ")
-    dpr_model = BiEncoder(model_path = (q_model_path, doc_model_path), sep=" [SEP] ", prompts={"query": "query: ", "passage": "passage: "})
+    # dpr_model = SentenceBERT(("facebook-dpr-question_encoder-multiset-base", "facebook-dpr-ctx_encoder-multiset-base"), sep=" [SEP] ")
+    # dpr_model = BiEncoder(model_path = ("sentence-transformers/facebook-dpr-question_encoder-multiset-base", "sentence-transformers/facebook-dpr-ctx_encoder-multiset-base"))
+    # dpr_model = BiEncoder(model_path = (q_model_path, doc_model_path))
+    # dpr_model.eval()
+    # query_prompt = "query: "
+    # passage_prompt = "passage: "
+
+    #### Load the Dense Retriever model (LLM2Vec)
+    # dpr_model = BiEncoder(
+    #     model_path=("intfloat/e5-base-v2", "intfloat/e5-base-v2"),
+    #     max_length=512,
+    #     append_eos_token=False,  # add [EOS] token to the end of the input
+    #     pooling="mean",
+    #     normalize=True,
+    #     prompts={"query": "query: ", "passage": "passage: "},
+    #     attn_implementation="eager"
+    # )
+    dpr_model = BiEncoder(
+        model_path=(q_model_path, doc_model_path),
+        normalize=config_dict["normalize"],
+        prompts={"query": config_dict["query_prompt"], "passage": config_dict["passage_prompt"]},
+        attn_implementation=config_dict["attn_implementation"], 
+        sep = config_dict["sep"]
+    )
     dpr_model.eval()
-    
+
     faiss_search = FlatIPFaissSearch(dpr_model, batch_size=batch_size)
 
     log_message(f"========================= Running task {task}.=========================")
     data_path = "/Tmp/lvpoellhuber/datasets/nq/nq"
     corpus, queries, qrels = GenericDataLoader(data_folder=data_path).load(split="test")
 
-    #corpus = dict(list(corpus.items())[0:100])
     if faiss_search.faiss_index == None:
         log_message("Indexing.")
         faiss_search.index(corpus=corpus)

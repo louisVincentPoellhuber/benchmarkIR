@@ -97,8 +97,8 @@ def custom_triplets_collate_fn(batch):
     queries = [item['query'] for item in batch]
     pos = [item['pos'] for item in batch]
     neg = [item['neg'][0] for item in batch] # Take only the top result after all
-    docs = [[item["pos"], item["neg"][0]] for item in batch]
-    return {'queries': queries, 'positive': pos, "negatives": neg, "documents":docs}
+
+    return {'queries': queries, 'positive': pos, "negatives": neg}
 
 def preprocess_hotpotqa(out_dir, split="train"):
     dataset_name = "hotpotqa"

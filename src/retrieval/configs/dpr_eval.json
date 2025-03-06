@@ -1,7 +1,7 @@
 {
     "settings": {
-        "q_model": "facebook/dpr-question_encoder-single-nq-base",
-        "doc_model": "facebook/dpr-ctx_encoder-single-nq-base",
+        "q_model": "facebook-dpr-question_encoder-multiset-base",
+        "doc_model": "facebook-dpr-ctx_encoder-multiset-base",
         "save_path": "STORAGE_DIR/models/new-attention/dpr/test2",
         "accelerate": true,
         "logging": true,
