@@ -1,24 +1,24 @@
 {
     "settings": {
-        "train": true,
         "task": "nq", 
-        "exp_name": "test2",
-        "save_path": "STORAGE_DIR/models/new-attention/dpr/test2",
+        "exp_name": "test-pairs-local",
+        "save_path": "STORAGE_DIR/models/new-attention/dpr/test-pairs-local",
+        "eval_hf_model": false,
         "negatives": true,
-        "logging": true,
         "accelerate": true,
-        "epochs": 1,
-        "batch_size": 1, 
+        "logging": true,
+        "epochs": 5,
+        "batch_size": 32, 
         "lr": 1e-5
     }, 
     "config": {
         "q_model": "google-bert/bert-base-uncased",
         "doc_model": "google-bert/bert-base-uncased",
-        "shared_encoder": false,
-        "normalize": true, 
+        "shared_encoder": true,
+        "normalize": false, 
         "attn_implementation": "eager", 
-        "query_prompt": "query: ",
-        "passage_prompt": "passage: ", 
-        "sep": " "
+        "query_prompt": "",
+        "passage_prompt": "", 
+        "sep": " [SEP] "
     }
 }

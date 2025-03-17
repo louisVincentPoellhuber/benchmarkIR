@@ -1,5 +1,5 @@
 echo Syncing...
-rsync -avz --update --progress /data/rech/poellhul/models/new-attention/ $STORAGE_DIR/models/new-attention
+# rsync -avz --update --progress /data/rech/poellhul/models/new-attention/ $STORAGE_DIR/models/new-attention
 
 
 dataset=$STORAGE_DIR'/datasets'
@@ -7,7 +7,7 @@ batch_size=64
 lr=1e-4
 
 # Baseline
-exp_name="customscript_debug"
+exp_name="customscript_debug_new"
 
 echo Training.
 
@@ -45,7 +45,11 @@ config='{"settings": {
         "config":'$model_config'}'
 
         
-NCCL_DEBUG=INFO accelerate launch src/new-attention/finetune_glue-trainer.py --config_dict "$config"
+export NCCL_DEBUG=INFO
+export TORCH_NCCL_ASYNC_ERROR_HANDLING=1
+export NCCL_P2P_DISABLE=1
+export NCCL_IB_DISABLE=1
+accelerate launch src/new-attention/finetune_glue.py --config_dict "$config"
 #python src/new-attention/finetune_glue.py --config_dict "$config"
 
 # The following changes train = True to train = False, as well as 
@@ -54,6 +58,6 @@ config=$(echo "$config" | sed -e 's/"evaluate": false/"evaluate": true/' -e 's/"
 echo $config
 
 # This has to be launched from Python instead of accelerate. 
-python src/new-attention/finetune_glue.py --config_dict "$config"
+# python src/new-attention/finetune_glue.py --config_dict "$config"
 
-rsync -avz --update --progress $STORAGE_DIR/models/new-attention/ /data/rech/poellhul/models/new-attention
+# rsync -avz --update --progress $STORAGE_DIR/models/new-attention/ /data/rech/poellhul/models/new-attention

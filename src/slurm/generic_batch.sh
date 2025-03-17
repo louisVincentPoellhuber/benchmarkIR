@@ -21,6 +21,6 @@ cd Documents/Masters/benchmarkIR
 
 # Change the pipeline or script to the one you wanna run
 set -x
-bash src/new-attention/pipelines/$1     
+bash src/retrieval/pipelines/$1     
 
 

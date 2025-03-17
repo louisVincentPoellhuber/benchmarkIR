@@ -1,14 +1,14 @@
 {
     "settings": {
         "task": "nq", 
-        "exp_name": "test_train",
-        "save_path": "STORAGE_DIR/models/new-attention/dpr/test_train",
+        "exp_name": "test_train_single_encoder",
+        "save_path": "STORAGE_DIR/models/new-attention/dpr/test_train_single_encoder",
         "eval_hf_model": false,
-        "negatives": true,
+        "negatives": false,
         "accelerate": true,
         "logging": true,
         "epochs": 5,
-        "batch_size": 12, 
+        "batch_size": 32, 
         "lr": 1e-5
     }, 
     "config": {

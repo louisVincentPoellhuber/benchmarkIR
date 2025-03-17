@@ -33,7 +33,7 @@ STORAGE_DIR = os.getenv("STORAGE_DIR")
 
 def parse_arguments():
     argparser = argparse.ArgumentParser("BenchmarkIR Script")
-    argparser.add_argument('--config', default="default") # default, adaptive, sparse
+    argparser.add_argument('--config', default="default")
     argparser.add_argument('--config_dict', default={}) 
     
     args = argparser.parse_args()
@@ -41,9 +41,6 @@ def parse_arguments():
     return args
 
 def evaluate_dpr(arg_dict):
-    device = "cuda:0" if torch.cuda.is_available() else "cpu" 
-    device = "cpu"
-
     settings = arg_dict["settings"]
     config_dict = arg_dict["config"]
 
@@ -51,47 +48,41 @@ def evaluate_dpr(arg_dict):
     dpr_path = settings["save_path"]
     batch_size = settings["batch_size"]
     task = settings["task"]
+    exp_name = settings["exp_name"]
     
-    q_model_path = config_dict["q_model"]
-    doc_model_path = config_dict["doc_model"]
-
-    if not os.path.exists(dpr_path):
-        os.mkdir(dpr_path)
+    log_message(f"========================= Evaluating run {exp_name}.=========================")
     
-    # dpr_model = CustomDPR.from_pretrained(model_path=dpr_path, device=device)
-    # dpr_model = SentenceBERT(("facebook-dpr-question_encoder-multiset-base", "facebook-dpr-ctx_encoder-multiset-base"), sep=" [SEP] ")
-    # dpr_model = BiEncoder(model_path = ("sentence-transformers/facebook-dpr-question_encoder-multiset-base", "sentence-transformers/facebook-dpr-ctx_encoder-multiset-base"))
-    # dpr_model = BiEncoder(model_path = (q_model_path, doc_model_path))
-    # dpr_model.eval()
-    # query_prompt = "query: "
-    # passage_prompt = "passage: "
+    # Are we testing a model directly from HuggingFace?
+    if settings["eval_hf_model"]: 
+        q_model_path = config_dict["q_model"]
+        doc_model_path = config_dict["doc_model"]
 
-    #### Load the Dense Retriever model (LLM2Vec)
-    # dpr_model = BiEncoder(
-    #     model_path=("intfloat/e5-base-v2", "intfloat/e5-base-v2"),
-    #     max_length=512,
-    #     append_eos_token=False,  # add [EOS] token to the end of the input
-    #     pooling="mean",
-    #     normalize=True,
-    #     prompts={"query": "query: ", "passage": "passage: "},
-    #     attn_implementation="eager"
-    # )
-    dpr_model = BiEncoder(
-        model_path=(q_model_path, doc_model_path),
-        normalize=config_dict["normalize"],
-        prompts={"query": config_dict["query_prompt"], "passage": config_dict["passage_prompt"]},
-        attn_implementation=config_dict["attn_implementation"], 
-        sep = config_dict["sep"]
-    )
+        if not os.path.exists(dpr_path):
+            os.mkdir(dpr_path)
+
+        dpr_model = BiEncoder(
+            model_path=(q_model_path, doc_model_path),
+            normalize=config_dict["normalize"],
+            prompts={"query": config_dict["query_prompt"], "passage": config_dict["passage_prompt"]},
+            attn_implementation=config_dict["attn_implementation"], 
+            sep = config_dict["sep"]
+        )
+    else: # Otherwise we assume we load it from the save path. 
+        dpr_model = BiEncoder.from_pretrained(settings["save_path"])
+        
     dpr_model.eval()
 
     faiss_search = FlatIPFaissSearch(dpr_model, batch_size=batch_size)
 
-    log_message(f"========================= Running task {task}.=========================")
-    data_path = "/Tmp/lvpoellhuber/datasets/nq/nq"
+    data_path = os.path.join(STORAGE_DIR, "datasets", task)
+    if task=="nq": 
+        data_path = os.path.join(data_path, "nq")
     corpus, queries, qrels = GenericDataLoader(data_folder=data_path).load(split="test")
 
-    if faiss_search.faiss_index == None:
+    try:
+        faiss_search.load(dpr_path, prefix="default")
+        print("Already indexed, loading.")
+    except:
         log_message("Indexing.")
         faiss_search.index(corpus=corpus)
         log_message("Saving.")
@@ -129,7 +120,7 @@ if __name__ == "__main__":
     if len(args.config_dict)>0:
         arg_dict = json.loads(args.config_dict)
     else:   
-        config_path = os.path.join("/u/poellhul/Documents/Masters/benchmarkIR-slurm/src/retrieval/configs", args.config+"_eval.json")
+        config_path = os.path.join("/u/poellhul/Documents/Masters/benchmarkIR-slurm/src/retrieval/configs", args.config+".json")
         with open(config_path) as fp: arg_dict = json.load(fp)
 
     for key in arg_dict["settings"]:

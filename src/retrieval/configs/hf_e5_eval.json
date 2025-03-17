@@ -1,0 +1,24 @@
+{
+    "settings": {
+        "task": "nq", 
+        "exp_name": "hf_e5",
+        "save_path": "STORAGE_DIR/models/new-attention/dpr/test3",
+        "eval_hf_model": true,
+        "negatives": false,
+        "accelerate": true,
+        "logging": true,
+        "epochs": 5,
+        "batch_size": 32, 
+        "lr": 1e-5
+    },
+    "config": {
+        "q_model": "intfloat/e5-base-v2",
+        "doc_model": "intfloat/e5-base-v2",
+        "shared_encoder": true,
+        "normalize": true, 
+        "attn_implementation": "eager", 
+        "query_prompt": "query: ",
+        "passage_prompt": "passage: ", 
+        "sep": " "
+    }
+}

@@ -28,6 +28,16 @@ import logging
 # print("|  AMP enabled:", torch.cuda.is_bf16_supported())  # Checks if BF16 is available
 # print("|  Default AMP dtype:", torch.get_autocast_gpu_dtype()) 
 
+
+def debug_accelerate(train_dataloader, model):
+    local_rank = int(os.environ.get("LOCAL_RANK", 0))
+    device = model.device
+    print(f"| Local rank: {local_rank} --- Model on {device}")
+    for batch_idx, batch in enumerate(train_dataloader):
+        print(f"| GPU {torch.cuda.current_device()} has batch {batch_idx}")
+    print("_________________\n")
+
+
 JOBID = os.getenv("SLURM_JOB_ID")
 if JOBID == None: JOBID = "local"
 logging.basicConfig( 
@@ -150,9 +160,12 @@ def main(arg_dict, accelerator):
         )
 
         
+        log_message("Preparing model.", logging.WARNING)
         model, optim, dataloader, scheduler = accelerator.prepare(
             model, optim, train_dataloader, scheduler
         )
+
+        debug_accelerate(train_dataloader, model)
 
     
         log_message("Beginning training process.", logging.WARNING)

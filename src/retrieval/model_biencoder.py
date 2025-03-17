@@ -12,6 +12,7 @@ import torch.nn.functional as F
 from torch import Tensor
 from tqdm.autonotebook import trange
 from transformers import AutoModel, AutoTokenizer
+import torch.distributed as dist
 
 import json
 
@@ -53,6 +54,7 @@ class BiEncoder:
         prompts: dict[str, str] = None,
         append_eos_token: bool = False,
         peft_model_path: str = None,
+        batch_size: int = 16,
         **kwargs,
     ):
         self.sep = sep
@@ -73,7 +75,6 @@ class BiEncoder:
             if isinstance(model_path, str):
                 self.q_model = AutoModel.from_pretrained(
                     model_path,
-                    device_map="auto",
                     torch_dtype=kwargs.get("torch_dtype", "auto"),
                     trust_remote_code=True,
                     attn_implementation=kwargs.get("attn_implementation", "eager"),
@@ -85,7 +86,6 @@ class BiEncoder:
             elif isinstance(model_path, tuple):
                 self.q_model = AutoModel.from_pretrained(
                     model_path[0],
-                    device_map="auto",
                     torch_dtype=kwargs.get("torch_dtype", "auto"),
                     trust_remote_code=True,
                     attn_implementation=kwargs.get("attn_implementation", "eager"),
@@ -93,7 +93,6 @@ class BiEncoder:
                 )
                 self.doc_model = AutoModel.from_pretrained(
                     model_path[1],
-                    device_map="auto",
                     torch_dtype=kwargs.get("torch_dtype", "auto"),
                     trust_remote_code=True,
                     attn_implementation=kwargs.get("attn_implementation", "eager"),
@@ -111,6 +110,7 @@ class BiEncoder:
         if pooling not in ["cls", "mean", "eos"]:
             raise ValueError("Supported Pooling techniques should be either 'cls', 'mean' or 'eos'")
         self.pooling_func = POOL_FUNC[pooling]
+        self.batch_size = batch_size
 
         if prompts:
             self.query_prefix = prompts.get("query", "")
@@ -140,64 +140,77 @@ class BiEncoder:
         )
         return collated_texts
 
-    def encode_queries(self, queries: list[str], batch_size: int = 16, **kwargs) -> list[Tensor] | np.ndarray | Tensor:
+    def encode_queries(self, queries: list[str],**kwargs) -> list[Tensor] | np.ndarray | Tensor:
         query_embeddings = []
-
+        
         context_manager = torch.no_grad() if not self.q_model.training else torch.enable_grad()
-        with context_manager:
-            for start_idx in range(0, len(queries), batch_size):
-                sub_queries = [self.query_prefix + query for query in queries[start_idx : start_idx + batch_size]]
-                if self.append_eos_token:
-                    query_input = self._append_eos_token(sub_queries)
-                else:
-                    query_input = self.tokenizer(sub_queries, truncation=True, padding=True, return_tensors="pt")
 
-                # Move the input to the device
-                query_input = query_input.to(self.q_model.device)
-                query_output = self.q_model(**query_input)
-                query_embeddings.append(self.pooling_func(query_output, query_input["attention_mask"]))
+        with context_manager:
+            if not self.q_model.training:
+                for start_idx in trange(0, len(queries), self.batch_size):
+                    sub_queries = [self.query_prefix + query for query in queries[start_idx : start_idx + self.batch_size]]
+                    query_embeddings.append(self._encode_queries(sub_queries))
+            else:
+                sub_queries = [self.query_prefix + query for query in queries]
+                query_embeddings.append(self._encode_queries(sub_queries))
 
         query_embeddings = torch.cat(query_embeddings)
 
         if self.normalize:
             query_embeddings = F.normalize(query_embeddings, p=2, dim=1)
 
-        if self.q_model.training:
-            return query_embeddings
+        return query_embeddings if self.q_model.training else query_embeddings.cpu()
+
+    def _encode_queries(self, sub_queries: list[str], **kwargs) -> list[Tensor] | np.ndarray | Tensor:
+        if self.append_eos_token:
+            query_input = self._append_eos_token(sub_queries)
         else:
-            return query_embeddings.cpu()
+            query_input = self.tokenizer(sub_queries, truncation=True, padding=True, return_tensors="pt")
+
+        # Move the input to the device
+        query_input = query_input.to(self.q_model.device)
+        query_output = self.q_model(**query_input)
+       
+        return self.pooling_func(query_output, query_input["attention_mask"])
 
     def encode_corpus(
-        self, corpus: list[dict[str, str]] | dict[str, list] | list[str], batch_size: int = 8, **kwargs
+        self, corpus: list[dict[str, str]] | dict[str, list] | list[str], **kwargs
     ) -> list[Tensor] | np.ndarray | Tensor:
         corpus_embeddings = []
         sentences = extract_corpus_sentences(corpus=corpus, sep=self.sep)
 
         context_manager = torch.no_grad() if not self.doc_model.training else torch.enable_grad()
+
         with context_manager:            
-            for start_idx in trange(0, len(sentences), batch_size):
-                sub_sentences = [
-                    self.doc_prefix + sentence for sentence in sentences[start_idx : start_idx + batch_size]
-                ]
-                if self.append_eos_token:
-                    ctx_input = self._append_eos_token(sub_sentences)
-                else:
-                    ctx_input = self.tokenizer(sub_sentences, truncation=True, padding=True, return_tensors="pt")
+            if not self.doc_model.training: # If evaluating, the batching loop happens HERE
+                for start_idx in trange(0, len(sentences), self.batch_size):
+                    sub_sentences = [
+                        self.doc_prefix + sentence for sentence in sentences[start_idx : start_idx + self.batch_size]
+                    ]
+                    corpus_embeddings.append(self._encode_corpus(sub_sentences))
+            else: # But if training, the batching loop happens in the main training loop instead
+                sub_sentences = [self.doc_prefix + sentence for sentence in sentences]
+                corpus_embeddings.append(self._encode_corpus(sub_sentences))
 
-                # Move the input to the device
-                ctx_input = ctx_input.to(self.doc_model.device)
-                ctx_output = self.doc_model(**ctx_input)
-                corpus_embeddings.append(self.pooling_func(ctx_output, ctx_input["attention_mask"]))
+        corpus_embeddings = torch.cat(corpus_embeddings)
 
-            corpus_embeddings = torch.cat(corpus_embeddings)
+        if self.normalize:
+            corpus_embeddings = F.normalize(corpus_embeddings, p=2, dim=1)
 
-            if self.normalize:
-                corpus_embeddings = F.normalize(corpus_embeddings, p=2, dim=1)
+        return corpus_embeddings if self.doc_model.training else corpus_embeddings.cpu()
 
-            if self.doc_model.training:
-                return corpus_embeddings
-            else:
-                return corpus_embeddings.cpu()
+    
+    def _encode_corpus(self, sub_sentences: list[str], **kwargs) -> list[Tensor] | np.ndarray | Tensor:
+        if self.append_eos_token:
+            ctx_input = self._append_eos_token(sub_sentences)
+        else:
+            ctx_input = self.tokenizer(sub_sentences, truncation=True, padding=True, return_tensors="pt")
+
+        # Move the input to the device
+        ctx_input = ctx_input.to(self.doc_model.device)
+        ctx_output = self.doc_model(**ctx_input)
+       
+        return self.pooling_func(ctx_output, ctx_input["attention_mask"])
 
     def train(self):
         self.q_model.train()
@@ -205,17 +218,27 @@ class BiEncoder:
     
     def eval(self):
         self.q_model.eval()
+        self.q_model.to("cuda:0") # Map to GPU. If the model is training, accelerate will deal with it. 
         self.doc_model.eval()
+        self.doc_model.to("cuda:0")
 
-    def save_pretrained(self, save_path: str, is_main_process = True, save_function = torch.save):
+    def save_pretrained(self, save_path: str, is_main_process = True, save_function = torch.save, accelerator = None):
         os.makedirs(save_path, exist_ok=True)
 
-        self.q_model.save_pretrained(os.path.join(save_path, "q_model"), is_main_process=is_main_process, save_function=save_function)
+        if accelerator is not None:
+            accelerator.wait_for_everyone()
+            self.q_model = accelerator.unwrap_model(self.q_model)
+            self.doc_model = accelerator.unwrap_model(self.doc_model)
 
+        q_model_path = os.path.join(save_path, "q_model")
+        self.q_model.save_pretrained(q_model_path, is_main_process=is_main_process, save_function=save_function)
+        self.tokenizer.save_pretrained(q_model_path) 
+
+        doc_model_path = os.path.join(save_path, "doc_model")
         if self.q_model is not self.doc_model:
-            self.doc_model.save_pretrained(os.path.join(save_path, "doc_model"), is_main_process=is_main_process, save_function=save_function)
+            self.doc_model.save_pretrained(doc_model_path, is_main_process=is_main_process, save_function=save_function)
+            self.tokenizer.save_pretrained(doc_model_path)
 
-        self.tokenizer.save_pretrained(save_path)
 
         config = {
             "max_length": self.max_length,
@@ -237,19 +260,21 @@ class BiEncoder:
             config = json.load(f)
 
         # Load tokenizer
-        tokenizer = AutoTokenizer.from_pretrained(load_path)
+        # tokenizer = AutoTokenizer.from_pretrained(load_path)
 
         # Load models
         if config["shared_encoder"]:
-            q_model = AutoModel.from_pretrained(os.path.join(load_path, "q_model"))
-            doc_model = q_model  # Share the same model
+            # q_model = AutoModel.from_pretrained(os.path.join(load_path, "q_model"))
+            # doc_model = q_model  # Share the same model
+            model_path = os.path.join(load_path, "q_model")
         else:
-            q_model = AutoModel.from_pretrained(os.path.join(load_path, "q_model"))
-            doc_model = AutoModel.from_pretrained(os.path.join(load_path, "doc_model"))
+            # q_model = AutoModel.from_pretrained(os.path.join(load_path, "q_model"))
+            # doc_model = AutoModel.from_pretrained(os.path.join(load_path, "doc_model"))
+            model_path = (os.path.join(load_path, "q_model"), os.path.join(load_path, "doc_model"))
 
         # Create instance
         instance = cls(
-            model_path=None,  # We manually set models, so model_path is not needed
+            model_path=model_path,  # We manually set models, so model_path is not needed
             max_length=config["max_length"],
             sep=config["sep"],
             pooling=config["pooling"],
@@ -257,7 +282,57 @@ class BiEncoder:
             append_eos_token=config["append_eos_token"],
             prompts={"query": config["query_prefix"], "passage": config["doc_prefix"]},
         )
-        instance.q_model = q_model
-        instance.doc_model = doc_model
-        instance.tokenizer = tokenizer
+        # instance.q_model = q_model
+        # instance.doc_model = doc_model
+        # instance.tokenizer = tokenizer
         return instance
+    
+    def accelerate_model(self, optim, dataloader, scheduler, accelerator):
+        # q_model = self.q_model
+        # doc_model = self.doc_model
+        # q_model, doc_model, optim, dataloader, scheduler = accelerator.prepare(
+        #     q_model, doc_model, optim, dataloader, scheduler
+        # )
+        # self.q_model = q_model
+        # self.doc_model = doc_model
+
+        optim, dataloader, scheduler = accelerator.prepare(optim, dataloader, scheduler)
+        self.q_model = accelerator.prepare(self.q_model)
+        self.doc_model = accelerator.prepare(self.doc_model)
+
+        return optim, dataloader, scheduler
+
+
+    def encode_tokenized_queries(self, query_input,**kwargs) -> list[Tensor] | np.ndarray | Tensor:
+        query_embeddings = []
+
+        context_manager = torch.no_grad() if not self.q_model.training else torch.enable_grad()
+        with context_manager:
+            query_output = self.q_model(**query_input)
+            query_embeddings = self.pooling_func(query_output, query_input["attention_mask"])
+
+            if self.normalize:
+                query_embeddings = F.normalize(query_embeddings, p=2, dim=1)
+
+            if self.q_model.training:
+                return query_embeddings
+            else:
+                return query_embeddings.cpu()
+
+    def encode_tokenized_corpus(
+        self, ctx_input, **kwargs
+    ) -> list[Tensor] | np.ndarray | Tensor:
+        corpus_embeddings = []
+
+        context_manager = torch.no_grad() if not self.doc_model.training else torch.enable_grad()
+        with context_manager:            
+            ctx_output = self.doc_model(**ctx_input)
+            corpus_embeddings = self.pooling_func(ctx_output, ctx_input["attention_mask"])
+
+            if self.normalize:
+                corpus_embeddings = F.normalize(corpus_embeddings, p=2, dim=1)
+
+            if self.doc_model.training:
+                return corpus_embeddings
+            else:
+                return corpus_embeddings.cpu()
