@@ -10,20 +10,17 @@ from tqdm import tqdm
 
 import torch
 from torch.optim import AdamW
-import torch.distributed as dist
-from torch.utils.data import DataLoader, DistributedSampler
-from accelerate import Accelerator, DistributedDataParallelKwargs, DataLoaderConfiguration
+from accelerate import Accelerator, DistributedDataParallelKwargs
 from transformers import get_scheduler
-from beir.retrieval.models import SentenceBERT
 
-from preprocessing.preprocess_utils import get_pairs_dataloader, get_triplets_dataloader
-from model_biencoder import BiEncoder
+from preprocessing.preprocess_utils import get_block_dataloader, get_pairs_dataloader
+from model_biencoder import LongBiEncoder
 from modeling_utils import *
 from losses import *
 
 import dotenv
 dotenv.load_dotenv()
-
+torch.autograd.set_detect_anomaly(True)
 STORAGE_DIR = os.getenv("STORAGE_DIR")
 
 def debug_accelerate(train_dataloader, biencoder):
@@ -38,33 +35,36 @@ def debug_accelerate(train_dataloader, biencoder):
 
 def parse_arguments():
     argparser = argparse.ArgumentParser("BenchmarkIR Script")
-    argparser.add_argument('--config', default="longformer_test") 
+    argparser.add_argument('--config', default="hierarchical_test") 
     argparser.add_argument('--config_dict', default={})
     
     args = argparser.parse_args()
 
     return args
 
-def train_dpr(arg_dict):
+
+def train_longtriever(arg_dict):
     settings = arg_dict["settings"]
     config_dict = arg_dict["config"]
     
-    enable_accelerate = settings["accelerate"]
-    enable_logging = settings["logging"]
 
     # Main arguments
-    q_model_path = config_dict["q_model"]
-    doc_model_path = config_dict["doc_model"]
-    sep = config_dict["sep"]
+    shared_encoder = config_dict["shared_encoder"]
+    if shared_encoder:
+        model_path = config_dict["q_model"]
+    else:
+        q_model_path = config_dict["q_model"]
+        doc_model_path = config_dict["doc_model"]
 
-    model_path = settings["save_path"]
+    save_path = settings["save_path"]
     use_negatives = settings["negatives"]
     batch_size = settings["batch_size"]
-
     task = settings["task"]
     exp_name = settings["exp_name"]
+    enable_accelerate = settings["accelerate"]
+    enable_logging = settings["logging"]
+    resume_from_checkpoint = "checkpoint" in config_dict
 
-    max_length = config_dict["max_length"] if "max_length" in config_dict else None
 
     log_message(f"========================= Finetuning run {exp_name}.=========================")
 
@@ -77,48 +77,55 @@ def train_dpr(arg_dict):
         random.seed(seed)
         os.environ["PYTHONHASHSEED"] = str(seed)
 
+    # TODO: add functionality to :
+    #       - randomize seed
+    #       - save & load seed when checkpointing
+    seed = 42
     seed_everything(42)
 
     logging_steps = 10 
-    accelerator = Accelerator(kwargs_handlers=[DistributedDataParallelKwargs(find_unused_parameters=True)])
+    accelerator = Accelerator(kwargs_handlers=[DistributedDataParallelKwargs(find_unused_parameters=False)])
 
     task_datapath = os.path.join(STORAGE_DIR, os.path.join("datasets", task))
-    if use_negatives:
-        dataset_path = os.path.join(task_datapath, "train_triplets.pt")
-        dataloader = get_triplets_dataloader(batch_size=batch_size, dataset_path=dataset_path)
-    else: 
-        dataset_path = os.path.join(task_datapath, "train_pairs.pt")
-        dataloader = get_pairs_dataloader(batch_size=batch_size, dataset_path=dataset_path)
-    if False: # temporary if: this is for the dynamic tokens
-        dataset_path = os.path.join(task_datapath, "train_pairs_dynamic.pt")
-        dataloader = get_pairs_dataloader(batch_size=batch_size, dataset_path=dataset_path, tokenizer_path=q_model_path, sep=sep)
-
+    dataset_path = os.path.join(task_datapath, "train_pairs.pt")
 
     # Read the config
     log_message("Initializing training. ")
+    dataloader = get_pairs_dataloader(
+        batch_size=batch_size, 
+        dataset_path=dataset_path, 
+        pin_memory=True, 
+        prefetch_factor=2, 
+        num_workers = 4
+    )
 
-    biencoder = BiEncoder(
-        model_path=(q_model_path, doc_model_path),
+    biencoder = LongBiEncoder(
+        model_path=(q_model_path, doc_model_path) if not shared_encoder else model_path,
         normalize=config_dict["normalize"],
         prompts={"query": config_dict["query_prompt"], "passage": config_dict["passage_prompt"]},
         attn_implementation=config_dict["attn_implementation"], 
         sep = config_dict["sep"], 
-        batch_size=settings["batch_size"], 
-        max_length=max_length
+        batch_size=settings["batch_size"],
+        max_block_length=config_dict["max_block_length"], 
+        max_num_blocks=config_dict["max_num_blocks"],
+        model_type = config_dict["model_type"] if "model_type" in config_dict else "longtriever"
     )
     biencoder.train()
     
-    optim = AdamW([
-        {"params": biencoder.q_model.parameters(), 'lr': settings["lr"]},
-        {"params": biencoder.doc_model.parameters(), 'lr': settings["lr"]}
-    ]) 
+    if not shared_encoder:
+        optim = AdamW([
+            {"params": biencoder.q_model.parameters(), 'lr': settings["lr"]},
+            {"params": biencoder.doc_model.parameters(), 'lr': settings["lr"]} 
+        ]) 
+    else:
+        optim = AdamW([
+            {"params": biencoder.q_model.parameters(), 'lr': settings["lr"]},
+        ]) 
 
     # Number of training epochs and warmup steps
     epochs = settings["epochs"]
     num_training_steps = epochs * len(dataloader)
     num_warmup_steps = int(0.1 * num_training_steps)
-
-    log_message(f"Pre-accelerate dataloader length: {len(dataloader)}", logging.DEBUG)
 
     # Initialize the scheduler
     scheduler = get_scheduler(
@@ -128,6 +135,7 @@ def train_dpr(arg_dict):
         num_training_steps=num_training_steps
     )
 
+
     experiment = None
     if enable_logging & accelerator.is_main_process:
         experiment  = comet_ml.Experiment(project_name="new-attention", auto_metric_step_rate=logging_steps)
@@ -135,75 +143,87 @@ def train_dpr(arg_dict):
         experiment.set_name(exp_name)
         experiment.set_model_graph(biencoder.__dict__)
 
-    optim, dataloader, scheduler = biencoder.accelerate_model(optim, dataloader, scheduler, accelerator)
+   
 
+    optim, dataloader, scheduler = biencoder.accelerate_model(optim, dataloader, scheduler, accelerator)
     # TODO: add to config dict
     # loss_fct = contrastive_loss
     loss_fct = InBatchNegativeLoss()
 
-    # debug_accelerate(dataloader, biencoder)
-
+    resume_step = None
+    if resume_from_checkpoint:
+        accelerator.load_state(config_dict["checkpoint"])
+        resume_step = scheduler.scheduler.last_epoch
+        starting_epoch = resume_step // len(dataloader)
+        resume_step -= starting_epoch * len(dataloader)
+    
     log_message("Beginning training process. ")
     # Training loop
-    step = 0
+    overall_step = 0 # Independent from i, because i restart at each epoch.
     for epoch in range(epochs):
-        loop = tqdm(dataloader, leave=True)
+        if resume_from_checkpoint and epoch == starting_epoch and resume_step is not None:
+            # We need to skip steps until we reach the resumed step only if we are not using a stateful dataloader
+            active_dataloader = accelerator.skip_first_batches(dataloader, resume_step)
+            overall_step += resume_step
+        else:
+            # After the first iteration though, we need to go back to the original dataloader
+            active_dataloader = dataloader
+        loop = tqdm(active_dataloader, desc=f'Epoch {epoch} ({accelerator.process_index})')
         for i, batch in enumerate(loop):
+            overall_step+=1
+
+            # Step init
             optim.zero_grad()
-            step+=1
 
-            # Dynamic pairs code
-            # query_input = batch["query_inputs"]
-            # doc_input = batch["doc_inputs"]
-            # q_embeddings = biencoder.encode_tokenized_queries(query_input, convert_to_tensor=True)
-            # doc_embeddings = biencoder.encode_tokenized_corpus(doc_input, convert_to_tensor=True) 
-
-            # Regular pairs code
+            # Input
             queries = batch["queries"]
-            if use_negatives:
-                positives = batch["positives"]
-                negatives = batch["negatives"]
-                documents = positives + negatives
-            else: 
-                documents = batch["documents"]
+            documents = batch["documents"]
 
+            # Encoding
+            doc_embeddings = biencoder.encode_corpus(documents, convert_to_tensor=True, pooling_layer=False) 
             q_embeddings = biencoder.encode_queries(queries, convert_to_tensor=True) 
-            doc_embeddings = biencoder.encode_corpus(documents, convert_to_tensor=True) 
-
-
+            
+            # Backwards pass
             loss = loss_fct(q_embeddings, doc_embeddings)
-            #loss.backward()
             accelerator.backward(loss)
 
+            # Updates
             optim.step()
             scheduler.step()
             
             # Logging info
-            if (step % logging_steps==0) & enable_logging & accelerator.is_main_process:
-                # log_message(f"Process {accelerator.process_index} reached wait_for_everyone()", flush=True)
-                # accelerator.wait_for_everyone()
-                # log_message(f"Process {accelerator.process_index} passed wait_for_everyone()", flush=True)
+            if (overall_step % logging_steps==0) & enable_logging & accelerator.is_main_process:
                 unwrapped_q_model = accelerator.unwrap_model(biencoder.q_model)
                 unwrapped_doc_model = accelerator.unwrap_model(biencoder.doc_model)
-                log_metrics(unwrapped_q_model, unwrapped_doc_model, scheduler, optim, experiment, loss, step)
+                log_metrics(unwrapped_q_model, unwrapped_doc_model, scheduler, optim, experiment, loss, overall_step)
 
-            loop.set_description(f'Epoch: {epoch}')
+            # Saving checkpoint
+            if overall_step%10000==0:
+                biencoder.save_checkpoint(save_path, accelerator)
+                accelerator.wait_for_everyone()
+
+            # TQDM stuff
             loop.set_postfix(loss = loss.item())
 
+        # Free up memory 
         gc.collect()
         torch.cuda.empty_cache()
         torch.cuda.synchronize()
-        
+
+        # Save every epoch        
+        accelerator.wait_for_everyone()
         biencoder.save_pretrained(
-            model_path, 
+            save_path, 
             is_main_process=accelerator.is_main_process,
             save_function=accelerator.save,
             accelerator=accelerator 
         )
 
+    # Save at the end of training
+    accelerator.wait_for_everyone()
     log_message("Training done. Saving model. ")
     biencoder.save_pretrained(
-        model_path, 
+        save_path, 
         is_main_process=accelerator.is_main_process,
         save_function=accelerator.save,
         accelerator=accelerator 
@@ -232,4 +252,4 @@ if __name__ == "__main__":
         if type(arg_dict["config"][key]) == str:
             arg_dict["config"][key] = arg_dict["config"][key].replace("STORAGE_DIR", STORAGE_DIR)
 
-    train_dpr(arg_dict)
+    train_longtriever(arg_dict)

@@ -3,6 +3,14 @@ from accelerate import Accelerator
 import os
 import logging
 
+from transformers import AutoConfig, AutoModel
+from model_longtriever import LongtrieverConfig, Longtriever, HierarchicalLongtrieverConfig, HierarchicalLongtriever
+
+AutoConfig.register("longtriever", LongtrieverConfig)
+AutoModel.register(LongtrieverConfig, Longtriever)
+AutoConfig.register("hierarchical_longtriever", HierarchicalLongtrieverConfig)
+AutoModel.register(HierarchicalLongtrieverConfig, HierarchicalLongtriever)
+
 import dotenv
 dotenv.load_dotenv()
 
@@ -22,9 +30,9 @@ logging.basicConfig(
 MAIN_PROCESS = Accelerator().is_main_process
 STORAGE_DIR = os.getenv("STORAGE_DIR")
 
-def log_message(message, level=logging.WARNING):
-    if MAIN_PROCESS:
-        print(message)
+def log_message(message, level=logging.WARNING, force_message = False):
+    if force_message or MAIN_PROCESS:
+        # print(message)
         logging.log(msg=message, level=level)
 
 

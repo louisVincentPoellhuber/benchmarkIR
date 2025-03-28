@@ -8,13 +8,13 @@
         "accelerate": true,
         "logging": true,
         "epochs": 5,
-        "batch_size": 32, 
+        "batch_size": 28, 
         "lr": 1e-5
     }, 
     "config": {
         "q_model": "google-bert/bert-base-uncased",
         "doc_model": "google-bert/bert-base-uncased",
-        "shared_encoder": true,
+        "shared_encoder": false,
         "normalize": false, 
         "attn_implementation": "eager", 
         "query_prompt": "",

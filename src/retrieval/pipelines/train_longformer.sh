@@ -3,11 +3,11 @@ echo Syncing...
 
 
 dataset=$STORAGE_DIR'/datasets'
-batch_size=28
+batch_size=3
 lr=1e-5
 
 # Baseline
-exp_name="triplets_20_epochs"
+exp_name="longformer_test"
 
 echo Training.
 
@@ -19,8 +19,8 @@ fi
 
 dataset=$STORAGE_DIR'/datasets'
 
-model_config='{"q_model": "google-bert/bert-base-uncased",
-        "doc_model": "google-bert/bert-base-uncased",
+model_config='{"q_model": "allenai/longformer-base-4096",
+        "doc_model": "allenai/longformer-base-4096",
         "shared_encoder": false,
         "normalize": false, 
         "attn_implementation": "eager", 
@@ -37,8 +37,8 @@ config='{"settings": {
         "logging": true,
         "accelerate": true,
         "eval_hf_model": false,
-        "negatives": true,
-        "epochs": 20,
+        "negatives": false,
+        "epochs": 5,
         "batch_size": '$batch_size',  
         "lr": '$lr'
         },

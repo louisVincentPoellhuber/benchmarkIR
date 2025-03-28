@@ -1,24 +1,25 @@
 {
     "settings": {
         "task": "nq", 
-        "exp_name": "test_train",
-        "save_path": "STORAGE_DIR/models/new-attention/dpr/test_train",
+        "exp_name": "longformer_test",
+        "save_path": "STORAGE_DIR/models/new-attention/dpr/longformer_test",
         "eval_hf_model": false,
         "negatives": false,
         "accelerate": true,
         "logging": true,
         "epochs": 5,
-        "batch_size": 28, 
+        "batch_size": 3, 
         "lr": 1e-5
     }, 
     "config": {
-        "q_model": "google-bert/bert-base-uncased",
-        "doc_model": "google-bert/bert-base-uncased",
+        "q_model": "allenai/longformer-base-4096",
+        "doc_model": "allenai/longformer-base-4096",
         "shared_encoder": true,
         "normalize": true, 
         "attn_implementation": "eager", 
         "query_prompt": "",
         "passage_prompt": "", 
-        "sep": " [SEP] "
+        "sep": " [SEP] ", 
+        "max_length": 4096
     }
 }
