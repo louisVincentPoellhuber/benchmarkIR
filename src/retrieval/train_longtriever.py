@@ -35,7 +35,7 @@ def debug_accelerate(train_dataloader, biencoder):
 
 def parse_arguments():
     argparser = argparse.ArgumentParser("BenchmarkIR Script")
-    argparser.add_argument('--config', default="hierarchical_test") 
+    argparser.add_argument('--config', default="longtriever_test") 
     argparser.add_argument('--config_dict', default={})
     
     args = argparser.parse_args()
@@ -63,6 +63,7 @@ def train_longtriever(arg_dict):
     exp_name = settings["exp_name"]
     enable_accelerate = settings["accelerate"]
     enable_logging = settings["logging"]
+    checkpoint_steps = settings["checkpoint_steps"] if "checkpoint_steps" in settings else 10000
     resume_from_checkpoint = "checkpoint" in config_dict
 
 
@@ -81,10 +82,10 @@ def train_longtriever(arg_dict):
     #       - randomize seed
     #       - save & load seed when checkpointing
     seed = 42
-    seed_everything(42)
+    seed_everything(seed)
 
     logging_steps = 10 
-    accelerator = Accelerator(kwargs_handlers=[DistributedDataParallelKwargs(find_unused_parameters=False)])
+    accelerator = Accelerator(kwargs_handlers=[DistributedDataParallelKwargs(find_unused_parameters=True)])
 
     task_datapath = os.path.join(STORAGE_DIR, os.path.join("datasets", task))
     dataset_path = os.path.join(task_datapath, "train_pairs.pt")
@@ -180,9 +181,9 @@ def train_longtriever(arg_dict):
             documents = batch["documents"]
 
             # Encoding
-            doc_embeddings = biencoder.encode_corpus(documents, convert_to_tensor=True, pooling_layer=False) 
             q_embeddings = biencoder.encode_queries(queries, convert_to_tensor=True) 
-            
+            doc_embeddings = biencoder.encode_corpus(documents, convert_to_tensor=True, pooling_layer=False) 
+
             # Backwards pass
             loss = loss_fct(q_embeddings, doc_embeddings)
             accelerator.backward(loss)
@@ -198,7 +199,7 @@ def train_longtriever(arg_dict):
                 log_metrics(unwrapped_q_model, unwrapped_doc_model, scheduler, optim, experiment, loss, overall_step)
 
             # Saving checkpoint
-            if overall_step%10000==0:
+            if overall_step%checkpoint_steps==0:
                 biencoder.save_checkpoint(save_path, accelerator)
                 accelerator.wait_for_everyone()
 

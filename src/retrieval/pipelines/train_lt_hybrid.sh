@@ -5,7 +5,7 @@ dataset=$STORAGE_DIR'/datasets'
 train_batch_size=3
 eval_batch_size=3
 lr=1e-4
-exp_name="longtriever_default"
+exp_name="longtriever_hybrid"
 
 model_path=$STORAGE_DIR'/models/longtriever/'$exp_name
 echo $model_path
@@ -17,7 +17,7 @@ dataset=$STORAGE_DIR'/datasets'
 echo Preprocessing data. 
 python src/retrieval/preprocessing/preprocess_msmarco-doc.py 
 
-model_config='{"q_model": "STORAGE_DIR/models/longtriever/pretrained/bert-base-uncased",
+model_config='{"q_model": "google-bert/bert-base-uncased",
         "doc_model": "STORAGE_DIR/models/longtriever/pretrained/bert-base-uncased",
         "shared_encoder": false,
         "normalize": false, 
@@ -45,7 +45,7 @@ config='{"settings": {
 
         
 echo Initializing model.
-python src/retrieval/init_longtriever.py --config_dict "$config" --base_model "google-bert/bert-base-uncased"
+python src/retrieval/init_longtriever.py --config_dict "$config" --base_model "google-bert/bert-base-uncased" 
 
 echo Training.
 export NCCL_DEBUG=INFO
@@ -58,4 +58,7 @@ export TORCH_NCCL_BLOCKING_WAIT=1
 # python src/retrieval/train_longtriever.py --config_dict "$config"
 
 echo Evaluating. 
-python src/retrieval/evaluate_longtriever.py  --config_dict "$config" --eval_batch_size $eval_batch_size
+# python src/retrieval/evaluate_longtriever.py  --config_dict "$config" --eval_batch_size $eval_batch_size
+rm -f $model_path'/mprofile.dat'
+mprof run --output $model_path'/mprofile.dat' src/retrieval/evaluate_longtriever.py  --config_dict "$config" --eval_batch_size $eval_batch_size
+mprof plot --output $model_path'/memory.png' $model_path'/mprofile.dat'

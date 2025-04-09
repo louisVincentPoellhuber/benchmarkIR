@@ -33,12 +33,10 @@ class BlockLevelContextawareEncoder(nn.Module):
         #     print("NaNs or Infs detected in hidden_states before BertLayer!")
         for i, layer_module in enumerate(self.text_encoding_layer):
             if i>0: # Every subsequent layer
-                # hidden_states = torch.clamp(hidden_states, min=-1e4, max=1e4)  # Prevent large values
                 layer_outputs = layer_module(hidden_states, attention_mask)
             else: # The first layer
                 temp_attention_mask = attention_mask.clone()
                 temp_attention_mask[:,:,:,0] = -10000.0
-                # hidden_states = torch.clamp(hidden_states, min=-1e4, max=1e4)  # Prevent large values
                 layer_outputs = layer_module(hidden_states, temp_attention_mask)
                 reduce_hidden_states=reduce_hidden_states[None,:,:].repeat(B,1,1)
 
@@ -47,7 +45,7 @@ class BlockLevelContextawareEncoder(nn.Module):
             hidden_states = hidden_states.view(B, N, L_, D)
             cls_hidden_states = hidden_states[:, :, 1, :].clone() # These are the CLS tokens: the block representations. If I copied it above, I could append it to the input and attend to them directly!
             
-            reduce_hidden_states = torch.clamp(reduce_hidden_states, min=-1e18, max=1e18)
+            # reduce_hidden_states = torch.clamp(reduce_hidden_states, min=-1e18, max=1e18)
             reduce_cls_hidden_states=torch.cat([reduce_hidden_states,cls_hidden_states],dim=1) #[B,N+1,D] So it's the doc token [DOC] with every block's [CLS] token
             station_hidden_states = self.information_exchanging_layer[i](reduce_cls_hidden_states, node_mask)[0]
             reduce_hidden_states = station_hidden_states[:,:1,:]
@@ -256,7 +254,6 @@ class HierarchicalLongtrieverEmbeddings(BertEmbeddings):
             inputs_embeds = self.word_embeddings(input_ids)
         token_type_embeddings = self.token_type_embeddings(token_type_ids)
 
-        # TODO: maybe skip if N==1
         if input_shape[1]>1:
             block_input_embeds, block_attention_mask = self.add_blockwise_cls_tokens(inputs_embeds, attention_mask)
         else:
@@ -333,7 +330,7 @@ class BlockLevelHierarchicalContextawareEncoder(nn.Module):
             if N>1: # Pointless to do for small document and queries
                 hidden_states = self.update_blockwise_cls_tokens(cls_hidden_states, hidden_states, B, N, L_, D)
 
-            reduce_hidden_states = torch.clamp(reduce_hidden_states, min=-1e18, max=1e18)
+            # reduce_hidden_states = torch.clamp(reduce_hidden_states, min=-1e18, max=1e18)
             reduce_cls_hidden_states=torch.cat([reduce_hidden_states,cls_hidden_states],dim=1) #[B,N+1,D] So it's the doc token [DOC] with every block's [CLS] token
             station_hidden_states = self.information_exchanging_layer[i](reduce_cls_hidden_states, node_mask)[0]
             reduce_hidden_states = station_hidden_states[:,:1,:]

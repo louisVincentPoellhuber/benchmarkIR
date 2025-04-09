@@ -1,8 +1,8 @@
 {
     "settings": {
         "task": "msmarco-doc", 
-        "exp_name": "test",
-        "save_path": "STORAGE_DIR/models/hierarchical/test",
+        "exp_name": "hierarchical",
+        "save_path": "STORAGE_DIR/models/hierarchical/hierarchical",
         "eval_hf_model": false,
         "negatives": false,
         "accelerate": true,

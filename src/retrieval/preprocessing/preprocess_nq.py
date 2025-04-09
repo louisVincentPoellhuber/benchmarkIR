@@ -5,7 +5,6 @@ import subprocess
 
 def parse_arguments():
     argparser = argparse.ArgumentParser("Download NQ dataset and preprocess it.")
-    argparser.add_argument('--tasks', default=["all"], help="Which tasks to preprocess. Options: nq, nq_dynamic, nq_bm25, all") # wikipedia
     argparser.add_argument('--datapath', default=STORAGE_DIR+"/datasets/nq") 
     argparser.add_argument('--overwrite', default=False) 
 
@@ -17,6 +16,8 @@ def download_nq(out_dir):
     # First do Test, in case it hasn't been done yet
     url = f"https://public.ukp.informatik.tu-darmstadt.de/thakur/BEIR/datasets/nq.zip"
     data_path = util.download_and_unzip(url, out_dir) # We never return the test datapath, as it's already correcly formatted. 
+
+    GenericDataLoader(data_folder=data_path).load(split="test")
 
     url = f"https://public.ukp.informatik.tu-darmstadt.de/thakur/BEIR/datasets/nq-train.zip"
     data_path = util.download_and_unzip(url, out_dir)
@@ -152,6 +153,8 @@ def preprocess_nq_bm25(out_dir, k=6):
 if __name__ == "__main__":
     
     args = parse_arguments()
+
+    os.makedirs(args.datapath, exist_ok=True)
     
     if args.overwrite or not os.path.exists(args.datapath+"/train_pairs.pt"):
         preprocess_nq_pairs(args.datapath)

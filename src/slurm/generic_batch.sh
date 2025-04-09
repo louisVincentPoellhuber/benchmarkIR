@@ -3,7 +3,7 @@
 #SBATCH --partition=rali
 #SBATCH --verbose
 #SBATCH --cpus-per-task=32
-#SBATCH --mem=64G
+#SBATCH --mem=200G
 
 STORAGE_DIR=/part/$2/Tmp/lvpoellhuber
 
@@ -19,7 +19,7 @@ export COMET_PROJECT_NAME=new-attention
 
 cd Documents/Masters/benchmarkIR
 
-# Change the pipeline or script to the one you wanna run
+# Change the pipeline or script to the one you wanna runs
 set -x
 bash src/retrieval/pipelines/$1     
 

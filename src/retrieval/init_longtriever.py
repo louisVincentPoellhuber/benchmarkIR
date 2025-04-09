@@ -44,6 +44,9 @@ def init_longtriever_params(base_model, longtriever):
             new_key = bert_key.replace("layer", "information_exchanging_layer")
             if new_key in longtriever_state_dict:
                 new_state_dict[new_key] = bert_value
+        else:
+            if bert_key in longtriever_state_dict:
+                new_state_dict[bert_key] = bert_value
 
     # Update Longtriever's state_dict with the new weights
     longtriever_state_dict.update(new_state_dict)
@@ -58,19 +61,31 @@ def check_weights(base_model, longtriever):
     lt_weights = longtriever.state_dict().keys()
 
     for name, param in base_model.named_parameters():
-        name = name.replace("layer", "text_encoding_layer")
+        text_name = name.replace("layer", "text_encoding_layer")
         # print(name)
-        if name in lt_weights:
-            lt_param = longtriever.state_dict()[name]
-            if torch.equal(param, lt_param):
-                print(f"Layer {name} matches")
+        if text_name in lt_weights:
+            lt_text_param = longtriever.state_dict()[text_name]
+            if torch.equal(param, lt_text_param):
+                print(f"Layer {text_name} matches")
                 pass
             else:
-                print(f"Layer {name} does not match")
+                print(f"Layer {text_name} does not match")
                 pass
-
         else:
-            print(f"Layer {name} not found.")
+            print(f"Layer {text_name} not found.")
+            pass
+
+        info_name = name.replace("layer", "information_exchanging_layer")
+        if info_name in lt_weights:
+            lt_info_param = longtriever.state_dict()[info_name]
+            if torch.equal(param, lt_info_param):
+                print(f"Layer {info_name} matches")
+                pass
+            else:
+                print(f"Layer {info_name} does not match")
+                pass
+        else:
+            print(f"Layer {info_name} not found.")
             pass
 
     return

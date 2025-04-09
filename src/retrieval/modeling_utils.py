@@ -74,3 +74,46 @@ def log_metrics(q_model, doc_model, scheduler, optim, experiment, loss, step):
     
     total_norm = total_norm ** 0.5
     experiment.log_metric("doc_total_grad_norm", total_norm, step=step)
+
+
+def default_args(arg_dict):
+    settings = arg_dict["settings"]
+    keys = settings.keys()
+
+    if "model" not in keys: settings["model"] = "FacebookAI/roberta-base"
+    if "save_path" not in keys: settings["save_path"] = "STORAGE_DIR/models"
+    if "tokenizer" not in keys: settings["tokenizer"] = "google-bert/bert-base-uncased"
+    if "accelerate" not in keys: settings["accelerate"] = True
+    if "logging" not in keys: settings["logging"] = True
+    if "epochs" not in keys: settings["epochs"] = 10
+    if "batch_size" not in keys: settings["batch_size"] = 3
+    if "lr" not in keys: settings["lr"] = 1e-4
+    if "weight_decay" not in keys: settings["weight_decay"] = 0.01
+    if "adam_beta1" not in keys: settings["adam_beta1"] = 0.9
+    if "adam_beta2" not in keys: settings["adam_beta2"] = 0.999
+    if "adam_epsilon" not in keys: settings["adam_epsilon"] = 1e-8
+    if "lr_scheduler_type" not in keys: settings["lr_scheduler_type"] = "linear"
+    if "warmup_ratio" in keys: 
+        settings["warmup_steps"] = 0
+    elif "warmup_steps" in keys:
+        settings["warmup_ratio"] = 0.0
+    else:
+        settings["warmup_steps"] = 0
+        settings["warmup_ratio"] = 0.06
+    if "save_strategy" not in keys: settings["save_strategy"] = "epoch"
+    if "save_total_limit" not in keys: settings["save_total_limit"] = 5 # Useful for if the code crashes: restart from last epoch
+    if "optim" not in keys: settings["optim"] = "adamw_torch"
+    if "resume_from_checkpoint" not in keys: settings["resume_from_checkpoint"] = None 
+    if "logging_steps" not in keys: settings["logging_steps"] = 10
+
+    if ("task" not in keys) | ("exp_name" not in keys):
+        raise Exception("Experiment not set up. Please provide an experiment name and a task.") 
+
+    arg_dict["settings"] = settings
+    
+    for key in arg_dict["settings"]:
+        if type(arg_dict["settings"][key]) == str:
+            arg_dict["settings"][key] = arg_dict["settings"][key].replace("STORAGE_DIR", STORAGE_DIR)
+
+
+    return arg_dict

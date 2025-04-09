@@ -13,7 +13,7 @@ if [[ "$1" == "octal30" ]]; then
 elif [[ "$1" == "octal31" ]]; then
     gpu="rtx_a5000"
     part="01"
-elif [[ "$1" == "octal40" ]]; then
+elif [[ "$1" == "octal40" || "$1" == "octal41" ]]; then
     gpu="ls40"
     part="01"
 else

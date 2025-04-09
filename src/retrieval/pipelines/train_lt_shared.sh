@@ -5,7 +5,7 @@ dataset=$STORAGE_DIR'/datasets'
 train_batch_size=3
 eval_batch_size=3
 lr=1e-4
-exp_name="longtriever_default"
+exp_name="longtriever_shared"
 
 model_path=$STORAGE_DIR'/models/longtriever/'$exp_name
 echo $model_path
@@ -15,11 +15,11 @@ fi
 dataset=$STORAGE_DIR'/datasets'
 
 echo Preprocessing data. 
-python src/retrieval/preprocessing/preprocess_msmarco-doc.py 
+python src/retrieval/preprocessing/preprocess_msmarco-doc.py
 
 model_config='{"q_model": "STORAGE_DIR/models/longtriever/pretrained/bert-base-uncased",
         "doc_model": "STORAGE_DIR/models/longtriever/pretrained/bert-base-uncased",
-        "shared_encoder": false,
+        "shared_encoder": true,
         "normalize": false, 
         "attn_implementation": "eager", 
         "query_prompt": "",
@@ -45,7 +45,7 @@ config='{"settings": {
 
         
 echo Initializing model.
-python src/retrieval/init_longtriever.py --config_dict "$config" --base_model "google-bert/bert-base-uncased"
+python src/retrieval/init_longtriever.py --config_dict "$config" --base_model "google-bert/bert-base-uncased"  #--overwrite true
 
 echo Training.
 export NCCL_DEBUG=INFO
@@ -54,8 +54,11 @@ export NCCL_P2P_DISABLE=1
 export NCCL_IB_DISABLE=1
 export TORCH_NCCL_BLOCKING_WAIT=1
 # --multi_gpu --num_processes 4 --gpu_ids 0,1,2,3 
-# NCCL_DEBUG=WARN TORCH_DISTRIBUTED_DEBUG=DETAIL accelerate launch src/retrieval/train_longtriever.py --config_dict "$config"
+# NCCL_DEBUG=WARN TORCH_DISTRIBUTED_DEBUG=DETAIL accelerate launch --num_processes=1 src/retrieval/train_longtriever.py --config_dict "$config"
 # python src/retrieval/train_longtriever.py --config_dict "$config"
 
 echo Evaluating. 
-python src/retrieval/evaluate_longtriever.py  --config_dict "$config" --eval_batch_size $eval_batch_size
+# python src/retrieval/evaluate_longtriever.py  --config_dict "$config" --eval_batch_size $eval_batch_size
+rm -f $model_path'/mprofile.dat'
+mprof run --output $model_path'/mprofile.dat' src/retrieval/evaluate_longtriever.py  --config_dict "$config" --eval_batch_size $eval_batch_size
+mprof plot --output $model_path'/memory.png' $model_path'/mprofile.dat'

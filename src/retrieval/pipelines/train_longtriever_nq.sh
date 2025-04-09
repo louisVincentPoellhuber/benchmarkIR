@@ -3,9 +3,9 @@ echo Syncing...
 
 dataset=$STORAGE_DIR'/datasets'
 train_batch_size=3
-eval_batch_size=3
+eval_batch_size=12
 lr=1e-4
-exp_name="longtriever_default"
+exp_name="nq_test"
 
 model_path=$STORAGE_DIR'/models/longtriever/'$exp_name
 echo $model_path
@@ -15,7 +15,7 @@ fi
 dataset=$STORAGE_DIR'/datasets'
 
 echo Preprocessing data. 
-python src/retrieval/preprocessing/preprocess_msmarco-doc.py 
+python src/retrieval/preprocessing/preprocess_nq.py 
 
 model_config='{"q_model": "STORAGE_DIR/models/longtriever/pretrained/bert-base-uncased",
         "doc_model": "STORAGE_DIR/models/longtriever/pretrained/bert-base-uncased",
@@ -30,7 +30,7 @@ model_config='{"q_model": "STORAGE_DIR/models/longtriever/pretrained/bert-base-u
         }'
 
 config='{"settings": {
-        "task": "msmarco-doc",
+        "task": "nq",
         "exp_name": "'$exp_name'",
         "save_path": "'$model_path'",
         "logging": true,
@@ -54,7 +54,7 @@ export NCCL_P2P_DISABLE=1
 export NCCL_IB_DISABLE=1
 export TORCH_NCCL_BLOCKING_WAIT=1
 # --multi_gpu --num_processes 4 --gpu_ids 0,1,2,3 
-# NCCL_DEBUG=WARN TORCH_DISTRIBUTED_DEBUG=DETAIL accelerate launch src/retrieval/train_longtriever.py --config_dict "$config"
+NCCL_DEBUG=WARN TORCH_DISTRIBUTED_DEBUG=DETAIL accelerate launch src/retrieval/train_longtriever.py --config_dict "$config"
 # python src/retrieval/train_longtriever.py --config_dict "$config"
 
 echo Evaluating. 

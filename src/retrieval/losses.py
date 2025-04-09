@@ -29,15 +29,17 @@ class InBatchNegativeLoss(nn.Module):
             query_vectors: Tensor of shape [batch_size, vector_dim]
             doc_vectors: Tensor of shape [batch_size, vector_dim]
         """
-        batch_size = query_vectors.size(0)
+        batch_size = doc_vectors.size(0)
         
         # Calculate similarity matrix
+        # TODO: output similarity
         similarity_matrix = torch.matmul(query_vectors, doc_vectors.transpose(0, 1))
         
         # Labels are just the diagonal indices
         labels = torch.arange(batch_size, device=query_vectors.device)
         
         # Cross entropy loss
+        # TODO: ensure it's normalized somewhere
         loss = F.cross_entropy(similarity_matrix, labels)
         
         return loss

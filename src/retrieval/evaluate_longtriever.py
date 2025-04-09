@@ -1,6 +1,7 @@
 from beir.datasets.data_loader import GenericDataLoader
 from beir.retrieval.evaluation import EvaluateRetrieval
 from beir.retrieval.search.dense import FlatIPFaissSearch
+from custom_search import CustomFaissSearch
 from accelerate import Accelerator
 
 from model_biencoder import LongBiEncoder
@@ -21,7 +22,7 @@ STORAGE_DIR = os.getenv("STORAGE_DIR")
 
 def parse_arguments():
     argparser = argparse.ArgumentParser("BenchmarkIR Script")
-    argparser.add_argument('--config', default="longtriever_test")
+    argparser.add_argument('--config', default="hierarchical_test")
     argparser.add_argument('--config_dict', default={}) 
     argparser.add_argument('--eval_batch_size', default=12) 
     
@@ -40,7 +41,7 @@ def evaluate_dpr(arg_dict):
     exp_name = settings["exp_name"]
     
     log_message(f"========================= Evaluating run {exp_name}.=========================")
-    
+
     # Are we testing a model directly from HuggingFace?
     if settings["eval_hf_model"]: 
         q_model_path = config_dict["q_model"]
@@ -61,7 +62,8 @@ def evaluate_dpr(arg_dict):
         
     dpr_model.eval()
 
-    faiss_search = FlatIPFaissSearch(dpr_model, batch_size=batch_size)
+    # faiss_search = FlatIPFaissSearch(dpr_model, batch_size=batch_size)
+    faiss_search = CustomFaissSearch(dpr_model, batch_size=batch_size, index_path=dpr_path)
 
     data_path = os.path.join(STORAGE_DIR, "datasets", task)
     if task=="nq": 

@@ -83,6 +83,7 @@ class BiEncoder:
                 )
                 self.doc_model = self.q_model
                 self.tokenizer = AutoTokenizer.from_pretrained(model_path, use_fast=True)
+                self.shared_model=True
 
             elif isinstance(model_path, tuple):
                 self.q_model = AutoModel.from_pretrained(
@@ -102,7 +103,8 @@ class BiEncoder:
                     **kwargs
                 )
                 self.tokenizer = AutoTokenizer.from_pretrained(model_path[0], use_fast=True)
-                
+                self.shared_model=False
+
         if self.tokenizer.pad_token_id is None:
             self.tokenizer.pad_token_id = self.tokenizer.eos_token_id
         self.tokenizer.padding_side = "right"
@@ -150,7 +152,7 @@ class BiEncoder:
     def encode_queries(self, queries: list[str],**kwargs) -> list[Tensor] | np.ndarray | Tensor:
         query_embeddings = []
         
-        context_manager = torch.no_grad() if not self.q_model.training else torch.enable_grad()
+        context_manager = torch.no_grad() if (not self.q_model.training) | self.shared_model else torch.enable_grad()
 
         with context_manager:
             if not self.q_model.training:
@@ -395,7 +397,10 @@ class LongBiEncoder(BiEncoder):
             batch_size=batch_size,
             **kwargs,
         )
-        
+        if self.q_model.base_model_prefix!=self.doc_model.base_model_prefix:
+            self.hybrid = True
+        else:
+            self.hybrid=False
         self.align_right = align_right
         self.max_num_blocks=max_num_blocks
 
@@ -406,11 +411,17 @@ class LongBiEncoder(BiEncoder):
             self.max_block_length=max_block_length-self.max_num_blocks+1
 
     def _encode_queries(self, sub_queries: list[str], **kwargs) -> list[Tensor] | np.ndarray | Tensor:
-        query_input = self.batch_tokenize(sub_queries, self.q_model.device)
-        query_output = self.q_model(**query_input)
-       
-        return query_output
-    
+        if self.hybrid:
+            query_input = self.tokenizer(sub_queries, truncation=True, padding=True, return_tensors="pt")
+            query_input = query_input.to(self.q_model.device)
+            query_output = self.q_model(**query_input)
+
+            return self.pooling_func(query_output, query_input["attention_mask"])
+        else:
+            query_input = self.batch_tokenize(sub_queries, self.q_model.device)
+            query_output = self.q_model(**query_input)
+
+            return query_output
     
     def _encode_corpus(self, sub_sentences: list[str], **kwargs) -> list[Tensor] | np.ndarray | Tensor:
         ctx_input = self.batch_tokenize(sub_sentences, self.doc_model.device)
@@ -469,3 +480,64 @@ class LongBiEncoder(BiEncoder):
             "input_ids_blocks": input_ids_blocks,
             "attention_mask_blocks": attention_mask_blocks,
         }
+
+    def save_pretrained(self, save_path: str, is_main_process = True, save_function = torch.save, accelerator = None):
+        if not is_main_process:
+            return  
+        os.makedirs(save_path, exist_ok=True)
+
+        if accelerator is not None:
+            self.q_model = accelerator.unwrap_model(self.q_model)
+            self.doc_model = accelerator.unwrap_model(self.doc_model)
+
+        q_model_path = os.path.join(save_path, "q_model")
+        self.q_model.save_pretrained(q_model_path, is_main_process=is_main_process, save_function=save_function)
+        self.tokenizer.save_pretrained(q_model_path) 
+
+        doc_model_path = os.path.join(save_path, "doc_model")
+        if self.q_model is not self.doc_model:
+            self.doc_model.save_pretrained(doc_model_path, is_main_process=is_main_process, save_function=save_function)
+            self.tokenizer.save_pretrained(doc_model_path)
+
+        config = {
+            "max_length": self.max_length,
+            "sep": self.sep,
+            "pooling": self.pooling_func.__name__.replace("_pooling", ""),
+            "normalize": self.normalize,
+            "append_eos_token": self.append_eos_token,
+            "query_prefix": self.query_prefix,
+            "doc_prefix": self.doc_prefix,
+            "shared_encoder": self.q_model is self.doc_model, 
+            "max_block_length": self.max_block_length, 
+            "max_num_blocks": self.max_num_blocks,
+            "model_type": self.model_type
+        }
+        with open(os.path.join(save_path, "config.json"), "w") as f:
+            json.dump(config, f)
+
+
+    @classmethod
+    def from_pretrained(cls, load_path: str):
+        """Load the bi-encoder model, tokenizer, and config."""
+        with open(os.path.join(load_path, "config.json"), "r") as f:
+            config = json.load(f)
+        # Load models
+        if config["shared_encoder"]:
+            model_path = os.path.join(load_path, "q_model")
+        else:
+            model_path = (os.path.join(load_path, "q_model"), os.path.join(load_path, "doc_model")) # Already a tuple!
+
+        # Create instance
+        instance = cls(
+            model_path=model_path,  # We manually set models, so model_path is not needed
+            max_length=config["max_length"],
+            sep=config["sep"],
+            pooling=config["pooling"],
+            normalize=config["normalize"],
+            append_eos_token=config["append_eos_token"],
+            prompts={"query": config["query_prefix"], "passage": config["doc_prefix"]},
+            max_block_length=config["max_block_length"], 
+            max_num_blocks=config["max_num_blocks"],
+            model_type = config["model_type"]
+        )
+        return instance

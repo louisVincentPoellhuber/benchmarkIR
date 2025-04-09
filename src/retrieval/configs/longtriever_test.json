@@ -1,8 +1,8 @@
 {
     "settings": {
         "task": "msmarco-doc", 
-        "exp_name": "longtriever_default",
-        "save_path": "STORAGE_DIR/models/longtriever/longtriever_test",
+        "exp_name": "test",
+        "save_path": "STORAGE_DIR/models/longtriever/test",
         "eval_hf_model": false,
         "negatives": false,
         "accelerate": true,
@@ -14,7 +14,7 @@
     "config": {
         "q_model": "STORAGE_DIR/models/longtriever/pretrained/bert-base-uncased",
         "doc_model": "STORAGE_DIR/models/longtriever/pretrained/bert-base-uncased",
-        "shared_encoder": false,
+        "shared_encoder": true,
         "normalize": false, 
         "attn_implementation": "eager", 
         "query_prompt": "",

@@ -3,10 +3,10 @@ import gzip
 import csv
 import requests
 import pandas as pd
+from random import randint
 
 def parse_arguments():
     argparser = argparse.ArgumentParser("Download MSMARCO dataset and preprocess it.")
-    argparser.add_argument('--tasks', default=["all"], help="Which tasks to preprocess. Options: nq, nq_dynamic, nq_bm25, all") # wikipedia
     argparser.add_argument('--datapath', default=STORAGE_DIR+"/datasets/msmarco-doc") 
     argparser.add_argument('--overwrite', default=False) 
 
@@ -84,7 +84,7 @@ def preprocess_dev(out_dir):
         for item in tsvreader:
             topicid, _, docid, rel = item[0].split(" ")
             assert rel == "1"
-            if topicid not in skipped_docs: # Skip  documents without text
+            if docid not in skipped_docs: # Skip  documents without text
                 dev_qrel[topicid] = docid
 
     log_message("Writing qrels to disk")
@@ -172,7 +172,7 @@ def preprocess_corpus(out_dir):
         print("Reading corpus all at once. This will take about two minutes.")
         corpus_in_content = corpus_in.readlines()
         
-        skipped_docs = []
+        skipped_docs = ["D2070532", "D705499", "D3246147", "D3414215", "D3336081", "D3259427"] # Known problematic documentss
         for doc_line in tqdm(corpus_in_content):
             doc = doc_line.rstrip().split("\t")
             if len(doc) == 4:
@@ -184,6 +184,92 @@ def preprocess_corpus(out_dir):
     skipped_doc_path = os.path.join(out_dir, "skipped_docs.csv")
     pd.Series(skipped_docs).to_csv(skipped_doc_path, index=False, header=None)
 
+def preprocess_short(data_path, reduction_factor=0.08):
+    out_dir = data_path+"-short"
+    os.makedirs(out_dir, exist_ok=True)
+    corpus, queries, qrels = GenericDataLoader(data_folder=data_path).load(split="test")
+
+    nb_queries = round(reduction_factor * len(queries))
+    nb_documents = round(reduction_factor * len(corpus))
+
+    query_ids = list(queries.keys())
+
+    short_corpus = {}
+    short_queries = {}
+    short_qrels = {}
+
+    randid = randint(0, len(queries))
+    qid = query_ids[randid]
+    for i in tqdm(range(nb_queries)):
+        while qid in short_queries.keys():
+            randid = randint(0, len(queries))
+            qid = query_ids[randid]
+
+        query = queries[qid]
+        docid = list(qrels[qid].keys())[0]
+        short_corpus[docid] = corpus[docid]
+        
+        short_qrels[qid] = docid
+        short_queries[qid] = query
+
+    positive_docids = short_corpus.keys()
+    all_docids = list(corpus.keys())
+
+    while (len(short_corpus) < nb_documents):
+        random_int = randint(0, len(corpus))
+        random_docid = all_docids[random_int]
+
+        if random_docid not in positive_docids:
+            short_corpus[random_docid] = corpus[random_docid]
+
+    with open(os.path.join(out_dir, "corpus.jsonl"), "w", encoding="utf-8") as f:
+        for doc_id, doc_content in short_corpus.items():
+            json.dump({"_id": doc_id, **doc_content}, f)
+            f.write("\n") 
+
+    with open(os.path.join(out_dir, "queries.jsonl"), "w", encoding="utf-8") as f:
+        for qid, query in short_queries.items():
+            json.dump({"_id": qid, "text": query, "metadata": {}}, f)
+            f.write("\n") 
+    
+    # Save as TSV file
+    qrel_dir = os.path.join(out_dir, "qrels")
+    os.makedirs(qrel_dir, exist_ok=True)
+    with open(os.path.join(qrel_dir, "test.tsv"), "w", encoding="utf-8", newline="") as f:
+        writer = csv.writer(f, delimiter="\t")  # Use tab as delimiter
+        
+        # Write header
+        writer.writerow(["query-id", "corpus-id", "score"])
+        
+        # Write rows
+        for qid, docid in short_qrels.items():
+            writer.writerow([qid, docid, 1])
+
+    dataloader = get_pairs_dataloader(batch_size = 1, dataset_path=os.path.join(data_path, "train_pairs.pt"))
+    
+    pairs_queries =[]
+    pairs_docs =[]
+    loop = tqdm(dataloader)
+    max_nb_pairs = round(reduction_factor * len(dataloader))
+    for i, batch in enumerate(loop):
+        if i>=max_nb_pairs:
+            break
+        query = batch["queries"][0]
+        document = batch["documents"][0]
+
+        pairs_queries.append(query)
+        pairs_docs.append(document)
+
+    pairs = {
+        "queries":pairs_queries,
+        "documents":pairs_docs
+    }
+
+    dataset = PairsDataset(pairs)    
+    save_path = os.path.join(out_dir,"train_pairs.pt")
+    dataset.save(save_path)
+
+
 if __name__ == "__main__":
     
     args = parse_arguments()
@@ -194,11 +280,13 @@ if __name__ == "__main__":
 
     download_msmarco(out_dir)
 
-    if args.overwrite or not os.path.exists(args.datapath+"/corpus.jsonl"):
+    if args.overwrite or not os.path.exists(out_dir+"/corpus.jsonl"):
         preprocess_corpus(out_dir)
-    if args.overwrite or not os.path.exists(args.datapath+"/queries.jsonl"):
+    if args.overwrite or not os.path.exists(out_dir+"/queries.jsonl"):
         preprocess_dev(out_dir)
-    if args.overwrite or not os.path.exists(args.datapath+"/train_pairs.pt"):
+    if args.overwrite or not os.path.exists(out_dir+"/train_pairs.pt"):
         preprocess_train(out_dir)
+    if args.overwrite or not os.path.exists(out_dir+"-short"):
+        preprocess_short(out_dir)
 
     

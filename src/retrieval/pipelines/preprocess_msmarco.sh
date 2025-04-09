@@ -1,2 +1,2 @@
 
-python src/retrieval/preprocessing/preprocess_msmarco-doc.py 
+python src/retrieval/preprocessing/preprocess_msmarco-doc.py
