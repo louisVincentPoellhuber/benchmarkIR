@@ -1,0 +1,24 @@
+{
+    "settings": {
+        "task": "nq", 
+        "exp_name": "shared_dpr",
+        "save_path": "STORAGE_DIR/models/new-attention/dpr/shared_dpr",
+        "eval_hf_model": false,
+        "negatives": false,
+        "accelerate": true,
+        "logging": true,
+        "epochs": 1,
+        "batch_size": 28, 
+        "lr": 1e-5
+    }, 
+    "config": {
+        "q_model": "google-bert/bert-base-uncased",
+        "doc_model": "google-bert/bert-base-uncased",
+        "shared_encoder": true,
+        "normalize": true, 
+        "attn_implementation": "eager", 
+        "query_prompt": "",
+        "passage_prompt": "", 
+        "sep": " [SEP] "
+    }
+}

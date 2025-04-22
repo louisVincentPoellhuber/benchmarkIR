@@ -1,8 +1,7 @@
 # This is very specific code to pursue training from a specific checkpoint. 
 
 dataset=$STORAGE_DIR'/datasets'
-train_batch_size=3
-eval_batch_size=12
+batch_size=3
 lr=1e-4
 exp_name="longtriever_continue"
 
@@ -38,7 +37,7 @@ config='{"settings": {
         "eval_hf_model": false,
         "negatives": false,
         "epochs": 1,
-        "batch_size": '$train_batch_size',  
+        "batch_size": '$batch_size',  
         "lr": '$lr'
         },
         "config":'$model_config'}'
@@ -58,4 +57,4 @@ accelerate launch src/retrieval/train_longtriever.py --config_dict "$config"
 # python src/retrieval/train_longtriever.py --config_dict "$config"
 
 echo Evaluating. 
-python src/retrieval/evaluate_longtriever.py  --config_dict "$config" --eval_batch_size $eval_batch_size
+python src/retrieval/evaluate_longtriever.py  --config_dict "$config" 

@@ -2,9 +2,8 @@ echo Syncing...
 # rsync -avz --update --progress /data/rech/poellhul/models/new-attention/ $STORAGE_DIR/models/new-attention
 
 dataset=$STORAGE_DIR'/datasets'
-train_batch_size=3
-eval_batch_size=3
-lr=1e-4
+batch_size=3
+lr=3e-5
 exp_name="hierarchical_8epochs"
 
 model_path=$STORAGE_DIR'/models/hierarchical/'$exp_name
@@ -19,6 +18,7 @@ python src/retrieval/preprocessing/preprocess_msmarco-doc.py
 
 model_config='{"q_model": "STORAGE_DIR/models/hierarchical/pretrained/bert-base-uncased",
         "doc_model": "STORAGE_DIR/models/hierarchical/pretrained/bert-base-uncased",
+        "checkpoint": "'$model_path'/checkpoints/checkpoint-2",
         "shared_encoder": false,
         "normalize": false, 
         "attn_implementation": "eager", 
@@ -38,10 +38,10 @@ config='{"settings": {
         "accelerate": true,
         "eval_hf_model": false,
         "negatives": false,
-        "epochs": 8,
-        "batch_size": '$train_batch_size',  
+        "epochs": 7,
+        "batch_size": '$batch_size',  
         "lr": '$lr', 
-        "checkpoint_steps": 25000
+        "checkpoint_steps": 10000
         },
         "config":'$model_config'}'
 
@@ -60,7 +60,8 @@ NCCL_DEBUG=WARN TORCH_DISTRIBUTED_DEBUG=DETAIL accelerate launch src/retrieval/t
 # python src/retrieval/train_longtriever.py --config_dict "$config"
 
 echo Evaluating. 
-# python src/retrieval/evaluate_longtriever.py  --config_dict "$config" --eval_batch_size $eval_batch_size
 rm -f $model_path'/mprofile.dat'
-mprof run --output $model_path'/mprofile.dat' src/retrieval/evaluate_longtriever.py  --config_dict "$config" --eval_batch_size $eval_batch_size
+mprof run --output $model_path'/mprofile.dat' src/retrieval/evaluate_longtriever.py  --config_dict "$config" 
 mprof plot --output $model_path'/memory.png' $model_path'/mprofile.dat'
+
+rsync -avz --update --progress $model_path /data/rech/poellhul/models/hierarchical/

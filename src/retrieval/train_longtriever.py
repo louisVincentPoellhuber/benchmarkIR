@@ -13,7 +13,7 @@ from torch.optim import AdamW
 from accelerate import Accelerator, DistributedDataParallelKwargs
 from transformers import get_scheduler
 
-from preprocessing.preprocess_utils import get_block_dataloader, get_pairs_dataloader
+from preprocessing.preprocess_utils import get_pairs_dataloader
 from model_biencoder import LongBiEncoder
 from modeling_utils import *
 from losses import *
@@ -35,7 +35,7 @@ def debug_accelerate(train_dataloader, biencoder):
 
 def parse_arguments():
     argparser = argparse.ArgumentParser("BenchmarkIR Script")
-    argparser.add_argument('--config', default="longtriever_test") 
+    argparser.add_argument('--config', default="longtriever_passage") 
     argparser.add_argument('--config_dict', default={})
     
     args = argparser.parse_args()
@@ -56,6 +56,13 @@ def train_longtriever(arg_dict):
         q_model_path = config_dict["q_model"]
         doc_model_path = config_dict["doc_model"]
 
+    gradient_clipping = False
+    if ("doc_gradient_clipping" in config_dict) & ("q_gradient_clipping" in config_dict):
+        log_message("Using gradient clipping. ")
+        q_gradient_clipping = config_dict["q_gradient_clipping"]
+        doc_gradient_clipping = config_dict["doc_gradient_clipping"]
+        gradient_clipping = True
+
     save_path = settings["save_path"]
     use_negatives = settings["negatives"]
     batch_size = settings["batch_size"]
@@ -65,6 +72,11 @@ def train_longtriever(arg_dict):
     enable_logging = settings["logging"]
     checkpoint_steps = settings["checkpoint_steps"] if "checkpoint_steps" in settings else 10000
     resume_from_checkpoint = "checkpoint" in config_dict
+
+    log_note_path = os.path.join(save_path, "slurm_ids.txt")
+    with open(log_note_path, "a") as log_file:
+        slurm_id = os.environ["SLURM_JOB_ID"] if "SLURM_JOB_ID" in os.environ else "local"
+        log_file.write(f"Training Job Slurm ID: {slurm_id}; Computer: {os.uname()[1]}\n")
 
 
     log_message(f"========================= Finetuning run {exp_name}.=========================")
@@ -182,11 +194,18 @@ def train_longtriever(arg_dict):
 
             # Encoding
             q_embeddings = biencoder.encode_queries(queries, convert_to_tensor=True) 
-            doc_embeddings = biencoder.encode_corpus(documents, convert_to_tensor=True, pooling_layer=False) 
+            doc_embeddings = biencoder.encode_corpus(documents, convert_to_tensor=True) 
 
             # Backwards pass
             loss = loss_fct(q_embeddings, doc_embeddings)
             accelerator.backward(loss)
+
+            scan_gradient_norm(biencoder, overall_step, batch, save_path)
+
+            if gradient_clipping:
+                accelerator.clip_grad_norm_(biencoder.q_model.parameters(), max_norm=q_gradient_clipping)
+                accelerator.clip_grad_norm_(biencoder.doc_model.parameters(), max_norm=doc_gradient_clipping)
+
 
             # Updates
             optim.step()
@@ -212,13 +231,8 @@ def train_longtriever(arg_dict):
         torch.cuda.synchronize()
 
         # Save every epoch        
+        biencoder.save_checkpoint(save_path, accelerator, checkpoint_dir_name="epoch_checkpoints")
         accelerator.wait_for_everyone()
-        biencoder.save_pretrained(
-            save_path, 
-            is_main_process=accelerator.is_main_process,
-            save_function=accelerator.save,
-            accelerator=accelerator 
-        )
 
     # Save at the end of training
     accelerator.wait_for_everyone()
@@ -252,5 +266,5 @@ if __name__ == "__main__":
     for key in arg_dict["config"]:
         if type(arg_dict["config"][key]) == str:
             arg_dict["config"][key] = arg_dict["config"][key].replace("STORAGE_DIR", STORAGE_DIR)
-
+    
     train_longtriever(arg_dict)

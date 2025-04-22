@@ -1,9 +1,7 @@
 echo Syncing...
-# rsync -avz --update --progress /data/rech/poellhul/models/new-attention/ $STORAGE_DIR/models/new-attention
 
 dataset=$STORAGE_DIR'/datasets'
-train_batch_size=3
-eval_batch_size=3
+batch_size=6
 lr=1e-4
 exp_name="longtriever_default"
 
@@ -38,7 +36,7 @@ config='{"settings": {
         "eval_hf_model": false,
         "negatives": false,
         "epochs": 1,
-        "batch_size": '$train_batch_size',  
+        "batch_size": '$batch_size',  
         "lr": '$lr'
         },
         "config":'$model_config'}'
@@ -54,8 +52,10 @@ export NCCL_P2P_DISABLE=1
 export NCCL_IB_DISABLE=1
 export TORCH_NCCL_BLOCKING_WAIT=1
 # --multi_gpu --num_processes 4 --gpu_ids 0,1,2,3 
-# NCCL_DEBUG=WARN TORCH_DISTRIBUTED_DEBUG=DETAIL accelerate launch src/retrieval/train_longtriever.py --config_dict "$config"
+NCCL_DEBUG=WARN TORCH_DISTRIBUTED_DEBUG=DETAIL accelerate launch src/retrieval/train_longtriever.py --config_dict "$config"
 # python src/retrieval/train_longtriever.py --config_dict "$config"
 
 echo Evaluating. 
-python src/retrieval/evaluate_longtriever.py  --config_dict "$config" --eval_batch_size $eval_batch_size
+python src/retrieval/evaluate_longtriever.py  --config_dict "$config" 
+
+rsync -avz --update --progress $model_path /data/rech/poellhul/models/longtriever/

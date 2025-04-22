@@ -1,29 +1,44 @@
 from beir.datasets.data_loader import GenericDataLoader
 from beir.retrieval.evaluation import EvaluateRetrieval
 from beir.retrieval.search.dense import FlatIPFaissSearch
-from custom_search import CustomFaissSearch
 from accelerate import Accelerator, DistributedDataParallelKwargs
-
-from model_biencoder import LongBiEncoder
+from modeling_retriever import LongtrieverRetriever
+from modeling_longtriever import Longtriever
 
 import os
 import random
 import argparse
 import json
-
-from modeling_utils import *
-
+import logging
+import time
 import dotenv
 dotenv.load_dotenv()
 
 MAIN_PROCESS = Accelerator().is_main_process
 STORAGE_DIR = os.getenv("STORAGE_DIR")
+JOBID = os.getenv("SLURM_JOB_ID")
+if JOBID == None: JOBID = "local"
+logging.basicConfig( 
+    encoding="utf-8", 
+    filename=f"slurm-{JOBID}.log", 
+    filemode="a", 
+    format="{asctime} - {levelname} - {message}",
+    style="{",
+    datefmt="%Y-%m-%d %H:%M",
+    level = logging.INFO
+    )
 
+
+def log_message(message, level=logging.WARNING, force_message = False):
+    if force_message or MAIN_PROCESS:
+        # print(message)
+        logging.log(msg=message, level=level)
 
 def parse_arguments():
     argparser = argparse.ArgumentParser("BenchmarkIR Script")
-    argparser.add_argument('--config', default="test_lt_ckpt_15")
+    argparser.add_argument('--config', default="longtriever")
     argparser.add_argument('--config_dict', default={}) 
+    argparser.add_argument('--eval_batch_size', default=12) 
     
     args = argparser.parse_args()
 
@@ -31,7 +46,6 @@ def parse_arguments():
 
 def evaluate_dpr(arg_dict):
     settings = arg_dict["settings"]
-    config_dict = arg_dict["config"]
 
     # Main arguments
     dpr_path = settings["save_path"]
@@ -41,33 +55,15 @@ def evaluate_dpr(arg_dict):
     
     log_note_path = os.path.join(dpr_path, "slurm_ids.txt")
     with open(log_note_path, "a") as log_file:
-        slurm_id = os.environ["SLURM_JOB_ID"] if "SLURM_JOB_ID" in os.environ else "local"
-        log_file.write(f"Evaluating Job Slurm ID: {slurm_id}; Computer: {os.uname()[1]}\n")
+        log_file.write(f"Evaluating Job ID: {JOBID}; Computer: {os.uname()[1]}\n")
 
     log_message(f"========================= Evaluating run {exp_name}.=========================")
 
-    # Are we testing a model directly from HuggingFace?
-    if settings["eval_hf_model"]: 
-        q_model_path = config_dict["q_model"]
-        doc_model_path = config_dict["doc_model"]
-
-        if not os.path.exists(dpr_path):
-            os.mkdir(dpr_path)
-
-        dpr_model = LongBiEncoder(
-            model_path=(q_model_path, doc_model_path),
-            normalize=config_dict["normalize"],
-            prompts={"query": config_dict["query_prompt"], "passage": config_dict["passage_prompt"]},
-            attn_implementation=config_dict["attn_implementation"], 
-            sep = config_dict["sep"]
-        )
-    else: # Otherwise we assume we load it from the save path. 
-        dpr_model = LongBiEncoder.from_pretrained(settings["save_path"])
+    dpr_model = LongtrieverRetriever(Longtriever.from_pretrained(dpr_path))
         
     dpr_model.eval()
 
-    # faiss_search = FlatIPFaissSearch(dpr_model, batch_size=batch_size)
-    faiss_search = CustomFaissSearch(dpr_model, batch_size=batch_size, index_path=dpr_path)
+    faiss_search = FlatIPFaissSearch(dpr_model, batch_size=batch_size)
 
     data_path = os.path.join(STORAGE_DIR, "datasets", task)
     if task=="nq": 
@@ -109,20 +105,21 @@ def evaluate_dpr(arg_dict):
 
 
 if __name__ == "__main__":    
+    log_message("Sleeping for 1 hours (3600s)...")
+    time.sleep(3600)
     
     args = parse_arguments()
 
     if len(args.config_dict)>0:
         arg_dict = json.loads(args.config_dict)
     else:   
-        config_path = os.path.join("/u/poellhul/Documents/Masters/benchmarkIR-slurm/src/retrieval/configs", args.config+".json")
+        config_path = os.path.join("/u/poellhul/Documents/Masters/benchmarkIR-slurm/src/longtriever/configs", args.config+".json")
         with open(config_path) as fp: arg_dict = json.load(fp)
 
     for key in arg_dict["settings"]:
         if type(arg_dict["settings"][key]) == str:
             arg_dict["settings"][key] = arg_dict["settings"][key].replace("STORAGE_DIR", STORAGE_DIR)
-    for key in arg_dict["config"]:
-        if type(arg_dict["config"][key]) == str:
-            arg_dict["config"][key] = arg_dict["config"][key].replace("STORAGE_DIR", STORAGE_DIR)
+
+    arg_dict["settings"]["batch_size"] = args.eval_batch_size
 
     evaluate_dpr(arg_dict)

@@ -4,6 +4,7 @@ import logging
 import faiss
 import numpy as np
 import os
+import gc
 logger = logging.getLogger(__name__)
 
 class CustomFaissSearch(FlatIPFaissSearch):
@@ -12,10 +13,12 @@ class CustomFaissSearch(FlatIPFaissSearch):
         self.index_path = index_path
 
     def index(self, corpus: dict[str, dict[str, str]], score_function: str = None, **kwargs):
+
         if os.path.exists(os.path.join(self.index_path, "corpus_embeddings.npy")) and os.path.exists(os.path.join(self.index_path, "faiss_ids.npy")):
             logger.info("Loading existing index...")
             corpus_embeddings = np.load(os.path.join(self.index_path, "corpus_embeddings.npy"))
             faiss_ids = np.load(os.path.join(self.index_path, "faiss_ids.npy"))
+            self.dim_size = corpus_embeddings.shape[1]
         else:
             faiss_ids, corpus_embeddings = super()._index(corpus, score_function, **kwargs)
             logger.info("Saving temporary index...")

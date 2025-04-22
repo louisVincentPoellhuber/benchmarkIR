@@ -7,7 +7,7 @@ batch_size=28
 lr=1e-5
 
 # Baseline
-exp_name="test-triplets-slurm"
+exp_name="script_test"
 
 echo Training.
 
@@ -37,8 +37,8 @@ config='{"settings": {
         "logging": true,
         "accelerate": true,
         "eval_hf_model": false,
-        "negatives": true,
-        "epochs": 5,
+        "negatives": false,
+        "epochs": 1,
         "batch_size": '$batch_size',  
         "lr": '$lr'
         },

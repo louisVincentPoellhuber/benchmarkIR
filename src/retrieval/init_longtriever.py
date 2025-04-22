@@ -39,14 +39,20 @@ def init_longtriever_params(base_model, longtriever):
             new_key = bert_key.replace("layer", "text_encoding_layer")
             if new_key in longtriever_state_dict:
                 new_state_dict[new_key] = bert_value
+            else:
+                print(f"Key {new_key} not found in Longtriever state_dict.")
 
             # Example: Map BERT's "layer.X" to Longtriever's "information_exchanging.X"
             new_key = bert_key.replace("layer", "information_exchanging_layer")
             if new_key in longtriever_state_dict:
                 new_state_dict[new_key] = bert_value
+            else:
+                print(f"Key {new_key} not found in Longtriever state_dict.")
         else:
             if bert_key in longtriever_state_dict:
                 new_state_dict[bert_key] = bert_value
+            else:
+                print(f"Key {bert_key} not found in Longtriever state_dict.")
 
     # Update Longtriever's state_dict with the new weights
     longtriever_state_dict.update(new_state_dict)

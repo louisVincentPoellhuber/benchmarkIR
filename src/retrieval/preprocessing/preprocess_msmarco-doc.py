@@ -110,6 +110,48 @@ def preprocess_dev(out_dir):
             json.dump({"_id": qid, "text": query, "metadata": {}}, f)
             f.write("\n")
 
+def preprocess_train(out_dir):
+    skipped_doc_path = os.path.join(out_dir, "skipped_docs.csv")
+    skipped_docs = pd.read_csv(skipped_doc_path, header=None)[0].to_list()
+    
+    dev_querystring = {}
+    with gzip.open(os.path.join(out_dir, "msmarco-doctrain-queries.tsv.gz"), 'rt', encoding='utf8') as f:
+        tsvreader = csv.reader(f, delimiter="\t")
+        for [topicid, querystring_of_topicid] in tsvreader:
+            dev_querystring[topicid] = querystring_of_topicid
+
+    dev_qrel = {}
+    with gzip.open(os.path.join(out_dir, "msmarco-doctrain-qrels.tsv.gz"), 'rt', encoding='utf8') as f:
+        tsvreader = csv.reader(f, delimiter="\t")
+        for item in tsvreader:
+            topicid, _, docid, rel = item[0].split(" ")
+            assert rel == "1"
+            if docid not in skipped_docs: # Skip  documents without text
+                dev_qrel[topicid] = docid
+
+    log_message("Writing qrels to disk")
+    qrel_dir = os.path.join(out_dir, "qrels")
+    if not os.path.exists(qrel_dir):
+        os.makedirs(qrel_dir)
+    qrel_filepath = os.path.join(qrel_dir, "train.tsv")
+
+
+    with open(qrel_filepath, "w", encoding="utf-8", newline="") as f:
+        writer = csv.writer(f, delimiter="\t", lineterminator='\n')
+        
+        writer.writerow(["query-id", "corpus-id", "score"])
+        
+        for qid, docid in dev_qrel.items():
+            writer.writerow([qid, docid, 1])
+        
+    log_message("Writing queries to disk")
+    queries_filepah = os.path.join(out_dir, "train_queries.jsonl")
+
+    with open(queries_filepah, "w") as f:
+        for qid, query in tqdm(dev_querystring.items()):
+            json.dump({"_id": qid, "text": query, "metadata": {}}, f)
+            f.write("\n")
+
 def load_jsonl(filepath):
     corpus = {}
     with open(filepath, "r", encoding="utf-8") as f:
@@ -118,7 +160,7 @@ def load_jsonl(filepath):
             corpus[doc["_id"]] = doc  # Use the document ID as the key
     return corpus
 
-def preprocess_train(out_dir):
+def preprocess_train_pairs(out_dir):
     skipped_doc_path = os.path.join(out_dir, "skipped_docs.csv")
     skipped_docs = pd.read_csv(skipped_doc_path, header=None)[0].to_list()
 
@@ -284,8 +326,10 @@ if __name__ == "__main__":
         preprocess_corpus(out_dir)
     if args.overwrite or not os.path.exists(out_dir+"/queries.jsonl"):
         preprocess_dev(out_dir)
-    if args.overwrite or not os.path.exists(out_dir+"/train_pairs.pt"):
+    if args.overwrite or not os.path.exists(out_dir+"/train_queries.jsonl"):
         preprocess_train(out_dir)
+    if args.overwrite or not os.path.exists(out_dir+"/train_pairs.pt"):
+        preprocess_train_pairs(out_dir)
     if args.overwrite or not os.path.exists(out_dir+"-short"):
         preprocess_short(out_dir)
 

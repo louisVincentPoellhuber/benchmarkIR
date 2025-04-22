@@ -158,7 +158,7 @@ if __name__ == "__main__":
     
     if args.overwrite or not os.path.exists(args.datapath+"/train_pairs.pt"):
         preprocess_nq_pairs(args.datapath)
-    if args.overwrite or not os.path.exists(args.datapath+"/train_pairs_dynamic.pt"):
-        preprocess_nq_dynamic_pairs(args.datapath)
-    if args.overwrite or not os.path.exists(args.datapath+"/train_triplets.pt"):
-        preprocess_nq_bm25(args.datapath)
+    # if args.overwrite or not os.path.exists(args.datapath+"/train_pairs_dynamic.pt"):
+    #     preprocess_nq_dynamic_pairs(args.datapath)
+    # if args.overwrite or not os.path.exists(args.datapath+"/train_triplets.pt"):
+    #     preprocess_nq_bm25(args.datapath)

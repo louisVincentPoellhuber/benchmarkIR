@@ -2,6 +2,7 @@ from accelerate import Accelerator
 
 import os
 import logging
+import torch
 
 from transformers import AutoConfig, AutoModel
 from model_longtriever import LongtrieverConfig, Longtriever, HierarchicalLongtrieverConfig, HierarchicalLongtriever
@@ -74,6 +75,24 @@ def log_metrics(q_model, doc_model, scheduler, optim, experiment, loss, step):
     
     total_norm = total_norm ** 0.5
     experiment.log_metric("doc_total_grad_norm", total_norm, step=step)
+
+
+def scan_gradient_norm(biencoder, step, batch, path):
+     # Calculate gradient norms
+    query_norm = torch.norm(torch.stack([
+        p.grad.detach().norm(2) for p in biencoder.q_model.parameters() if p.grad is not None
+    ]), 2).item()
+
+    doc_norm = torch.norm(torch.stack([
+        p.grad.detach().norm(2) for p in biencoder.doc_model.parameters() if p.grad is not None
+    ]), 2).item()
+
+    # Threshold to catch extreme gradients
+    if query_norm > 50.0 or doc_norm > 50.0:
+        log_message(f"Step {step} has high gradient norm. Query: {query_norm:.2f}, Doc: {doc_norm:.2f}", logging.ERROR)
+        save_path = os.path.join(path, f"problematic_batch_step_{step}.pt")
+        torch.save(batch, save_path)
+
 
 
 def default_args(arg_dict):

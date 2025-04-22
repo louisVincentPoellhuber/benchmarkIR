@@ -1,0 +1,14 @@
+{
+    "settings": {
+        "task": "msmarco-doc-short", 
+        "exp_name": "longtriever_og",
+        "save_path": "./output_longtriever_finetune_long2",
+        "eval_hf_model": false,
+        "negatives": false,
+        "accelerate": true,
+        "logging": true,
+        "epochs": 1,
+        "batch_size": 6, 
+        "lr": 1e-4
+    }
+}

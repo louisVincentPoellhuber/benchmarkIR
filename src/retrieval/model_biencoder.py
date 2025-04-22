@@ -189,7 +189,7 @@ class BiEncoder:
         sentences = extract_corpus_sentences(corpus=corpus, sep=self.sep)
 
         context_manager = torch.no_grad() if not self.doc_model.training else torch.enable_grad()
-
+    
         with context_manager:            
             if not self.doc_model.training: # If evaluating, the batching loop happens HERE
                 for start_idx in trange(0, len(sentences), self.batch_size):
@@ -226,7 +226,7 @@ class BiEncoder:
         self.doc_model.train()
     
     def eval(self):
-        self.q_model.eval()
+        self.q_model.eval() 
         self.q_model.to("cuda:0") # Map to GPU. If the model is training, accelerate will deal with it. 
         self.doc_model.eval()
         self.doc_model.to("cuda:0")
@@ -297,10 +297,10 @@ class BiEncoder:
         # instance.tokenizer = tokenizer
         return instance
     
-    def save_checkpoint(self, save_path: str, accelerator):
+    def save_checkpoint(self, save_path: str, accelerator, checkpoint_dir_name = "checkpoints"):
         if accelerator.is_main_process:
             # Create checkpoints directory
-            ckpt_path = os.path.join(save_path, "checkpoints")
+            ckpt_path = os.path.join(save_path, checkpoint_dir_name)
             os.makedirs(ckpt_path, exist_ok=True)
             
             # Generate unique checkpoint ID
@@ -310,8 +310,7 @@ class BiEncoder:
 
             accelerator.save_state(checkpoint_dir)
 
-    def load_checkpoint(self, load_path: str, optim=None, scheduler=None, 
-                        accelerator=None, load_optimizer=True, load_scheduler=True):
+    def load_checkpoint(self, load_path: str, accelerator=None):
          
         accelerator.load_state(load_path)
 
@@ -333,40 +332,6 @@ class BiEncoder:
 
         return optim, dataloader, scheduler
 
-
-    # def encode_tokenized_queries(self, query_input,**kwargs) -> list[Tensor] | np.ndarray | Tensor:
-    #     query_embeddings = []
-
-    #     context_manager = torch.no_grad() if not self.q_model.training else torch.enable_grad()
-    #     with context_manager:
-    #         query_output = self.q_model(**query_input)
-    #         query_embeddings = self.pooling_func(query_output, query_input["attention_mask"])
-
-    #         if self.normalize:
-    #             query_embeddings = F.normalize(query_embeddings, p=2, dim=1)
-
-    #         if self.q_model.training:
-    #             return query_embeddings
-    #         else:
-    #             return query_embeddings.cpu()
-
-    # def encode_tokenized_corpus(
-    #     self, ctx_input, pooling_layer = True, **kwargs
-    # ) -> list[Tensor] | np.ndarray | Tensor:
-    #     corpus_embeddings = []
-
-    #     context_manager = torch.no_grad() if not self.doc_model.training else torch.enable_grad()
-    #     with context_manager:            
-    #         ctx_output = self.doc_model(**ctx_input)
-    #         corpus_embeddings = self.pooling_func(ctx_output, ctx_input["attention_mask"]) if pooling_layer else ctx_output
-
-    #         if self.normalize:
-    #             corpus_embeddings = F.normalize(corpus_embeddings, p=2, dim=1)
-
-    #         if self.doc_model.training:
-    #             return corpus_embeddings
-    #         else:
-    #             return corpus_embeddings.cpu()
 
 class LongBiEncoder(BiEncoder):
     def __init__(
@@ -397,7 +362,7 @@ class LongBiEncoder(BiEncoder):
             batch_size=batch_size,
             **kwargs,
         )
-        if self.q_model.base_model_prefix!=self.doc_model.base_model_prefix:
+        if self.q_model.base_model_prefix!=self.doc_model.base_model_prefix: 
             self.hybrid = True
         else:
             self.hybrid=False

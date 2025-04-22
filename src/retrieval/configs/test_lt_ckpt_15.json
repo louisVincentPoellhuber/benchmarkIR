@@ -1,0 +1,27 @@
+{
+    "settings": {
+        "task": "msmarco-doc", 
+        "exp_name": "longtriever_8epochs",
+        "save_path": "STORAGE_DIR/models/longtriever/longtriever_8epochs",
+        "eval_hf_model": false,
+        "negatives": false,
+        "accelerate": true,
+        "logging": true,
+        "epochs": 1,
+        "batch_size": 3, 
+        "lr": 3e-5
+    }, 
+    "config": {
+        "q_model": "STORAGE_DIR/models/longtriever/pretrained/bert-base-uncased",
+        "doc_model": "STORAGE_DIR/models/longtriever/pretrained/bert-base-uncased",
+        "checkpoint": "STORAGE_DIR/models/longtriever/longtriever_8epochs/checkpoints/checkpoint-15",
+        "shared_encoder": false,
+        "normalize": false, 
+        "attn_implementation": "eager", 
+        "query_prompt": "",
+        "passage_prompt": "", 
+        "sep": " [SEP] ", 
+        "max_block_length": 512, 
+        "max_num_blocks": 8
+    }
+}
