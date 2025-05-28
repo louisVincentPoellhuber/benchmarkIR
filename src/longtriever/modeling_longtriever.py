@@ -4,13 +4,24 @@ from transformers.models.bert.modeling_bert import BertEmbeddings,BertLayer,Bert
 from torch import Tensor, nn
 from enhancedDecoder import BertLayerForDecoder
 
+# Mean pooling useful for encoder based models with Mean Pooling usually used with cosine similarity and normalization.
+def mean_pooling(model_output, attention_mask):
+    token_embeddings = model_output # First element of model_output contains all token embeddings
+    input_mask_expanded = attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
+    return torch.sum(token_embeddings * input_mask_expanded, 1) / torch.clamp(input_mask_expanded.sum(1), min=1e-9)
+
+# CLS pooling useful for encoder based models with CLS Pooling usually used with dot-product similarity.
+def cls_pooling(model_output, attention_mask=None):
+    return model_output.last_hidden_state[:, 0, :]  # CLS token is first token
+
 
 class BlockLevelContextawareEncoder(nn.Module):
-    def __init__(self, config):
+    def __init__(self, config, ablation_config):
         super().__init__()
         self.config = config
         self.text_encoding_layer = nn.ModuleList([BertLayer(config) for _ in range(config.num_hidden_layers)])
         self.information_exchanging_layer = nn.ModuleList([BertLayer(config) for _ in range(config.num_hidden_layers)])
+        self.ablation_config = ablation_config
 
     def forward(
         self,
@@ -23,7 +34,7 @@ class BlockLevelContextawareEncoder(nn.Module):
         B, _, _, N_ = node_mask.shape
         N=N_-1
         for i, layer_module in enumerate(self.text_encoding_layer):
-            if i>0:
+            if (i>0) or (not self.ablation_config["inter_block_encoder"]):
                 layer_outputs = layer_module(hidden_states, attention_mask)
             else:
                 temp_attention_mask = attention_mask.clone()
@@ -33,33 +44,37 @@ class BlockLevelContextawareEncoder(nn.Module):
 
             hidden_states = layer_outputs[0]
 
-            hidden_states = hidden_states.view(B, N, L_, D)
-            cls_hidden_states = hidden_states[:, :, 1, :].clone()
+            if self.ablation_config["inter_block_encoder"]:
+                hidden_states = hidden_states.view(B, N, L_, D)
+                cls_hidden_states = hidden_states[:, :, 1, :].clone()
 
-            reduce_cls_hidden_states=torch.cat([reduce_hidden_states,cls_hidden_states],dim=1) #[B,N+1,D]
-            station_hidden_states = self.information_exchanging_layer[i](reduce_cls_hidden_states, node_mask)[0]
-            reduce_hidden_states = station_hidden_states[:,:1,:]
-            hidden_states[:, :, 0, :] = station_hidden_states[:,1:,:]
-            hidden_states = hidden_states.view(B * N, L_, D)
+                reduce_cls_hidden_states=torch.cat([reduce_hidden_states,cls_hidden_states],dim=1) #[B,N+1,D]
+                station_hidden_states = self.information_exchanging_layer[i](reduce_cls_hidden_states, node_mask)[0]
+                reduce_hidden_states = station_hidden_states[:,:1,:]
+                hidden_states[:, :, 0, :] = station_hidden_states[:,1:,:]
+                hidden_states = hidden_states.view(B * N, L_, D)
 
         return (reduce_hidden_states, hidden_states, )
 
 class Longtriever(BertModel):
-    def __init__(self, config):
+    def __init__(self, config, ablation_config):
         super().__init__(config, add_pooling_layer=False)
         self.config = config
-
+        self.ablation_config = ablation_config
         self.embeddings = BertEmbeddings(config)
-        self.encoder = BlockLevelContextawareEncoder(config)
+        self.encoder = BlockLevelContextawareEncoder(config, self.ablation_config)
         self.doc_embeddings = nn.Embedding(1,config.hidden_size).weight #[1,D]
+        self.doc_embeddings.data.uniform_(-1e-20, 1e-20) # Initialize near zero
+        # self.doc_embeddings.data.zero_() # Initialize to zero if needed
 
         # Initialize weights and apply final processing
         self.post_init()
 
     def get_extended_attention_mask(self, attention_mask: Tensor) -> Tensor:
         #station_mask==0? for attention_mask==0
-        station_mask = torch.ones((attention_mask.shape[0],1),dtype=attention_mask.dtype,device=attention_mask.device) # [B*N,1]
-        attention_mask = torch.cat([station_mask,attention_mask],dim=1) # [B*N,1+L]
+        if self.ablation_config["doc_token"]:
+            station_mask = torch.ones((attention_mask.shape[0],1),dtype=attention_mask.dtype,device=attention_mask.device) # [B*N,1]
+            attention_mask = torch.cat([station_mask,attention_mask],dim=1) # [B*N,1+L]
         extended_attention_mask = attention_mask[:, None, None, :]
         extended_attention_mask = extended_attention_mask.to(dtype=self.dtype)  # fp16 compatibility
         extended_attention_mask = (1.0 - extended_attention_mask) * -10000.0
@@ -87,16 +102,32 @@ class Longtriever(BertModel):
         extended_sentence_mask = (1.0 - sentence_mask[:, None, None, :]) * -10000.0
 
         embedding_output = self.embeddings(input_ids=input_ids)
-        station_placeholder = torch.zeros((embedding_output.shape[0], 1, embedding_output.shape[-1]),dtype=embedding_output.dtype,device=embedding_output.device)
-        embedding_output = torch.cat([station_placeholder, embedding_output], dim=1)  # [B*N,1+L,D]
+        
+        if self.ablation_config["doc_token"]:
+            station_placeholder = torch.zeros((embedding_output.shape[0], 1, embedding_output.shape[-1]),dtype=embedding_output.dtype,device=embedding_output.device)
+            embedding_output = torch.cat([station_placeholder, embedding_output], dim=1)  # [B*N,1+L,D]
+            
+            encoder_outputs = self.encoder(
+                embedding_output,
+                attention_mask=extended_attention_mask,
+                reduce_hidden_states=self.doc_embeddings,
+                node_mask=extended_sentence_mask,
+            )
+        else:            
+            encoder_outputs = self.encoder(
+                embedding_output,
+                attention_mask=extended_attention_mask,
+                reduce_hidden_states=self.doc_embeddings,
+                node_mask=extended_sentence_mask,
+            )
 
-        encoder_outputs = self.encoder(
-            embedding_output,
-            attention_mask=extended_attention_mask,
-            reduce_hidden_states=self.doc_embeddings,
-            node_mask=extended_sentence_mask,
-        )
-        text_vec = encoder_outputs[0].squeeze(1)
+        # Pooling depending on context
+        if self.ablation_config["inter_block_encoder"]:
+            text_vec = encoder_outputs[0].squeeze(1)
+        elif not self.ablation_config["inter_block_encoder"] and self.ablation_config["doc_token"]:
+            text_vec = encoder_outputs[1][:,1,:] 
+        elif not self.ablation_config["inter_block_encoder"] and not self.ablation_config["doc_token"]:
+            text_vec = encoder_outputs[1][:,0,:] 
 
         if not return_last_hiddens:
             return text_vec

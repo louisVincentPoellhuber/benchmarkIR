@@ -4,6 +4,7 @@ dataset=$STORAGE_DIR'/datasets'
 batch_size=6
 lr=1e-4
 exp_name="longtriever_default"
+export EXP_NAME=$exp_name
 
 model_path=$STORAGE_DIR'/models/longtriever/'$exp_name
 echo $model_path

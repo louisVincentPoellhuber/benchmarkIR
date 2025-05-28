@@ -7,6 +7,7 @@ dataset=$STORAGE_DIR'/datasets'
 
 exp_name="rocket_lt-passage"
 batch_size=44
+export EXP_NAME=$exp_name
 
 model_path=$STORAGE_DIR'/models/longtriever/'$exp_name
 echo $model_path
@@ -53,11 +54,11 @@ export TORCH_NCCL_ASYNC_ERROR_HANDLING=1
 export NCCL_P2P_DISABLE=1
 export NCCL_IB_DISABLE=1
 export TORCH_NCCL_BLOCKING_WAIT=1
-NCCL_DEBUG=WARN TORCH_DISTRIBUTED_DEBUG=DETAIL accelerate launch src/retrieval/train_longtriever.py --config_dict "$config"
+# NCCL_DEBUG=WARN TORCH_DISTRIBUTED_DEBUG=DETAIL accelerate launch src/retrieval/train_longtriever.py --config_dict "$config"
 
 
 exp_name="rocket_lt-doc"
-batch_size=3
+batch_size=4
 lr=3e-5
 
 model_path=$STORAGE_DIR'/models/longtriever/'$exp_name
@@ -88,7 +89,7 @@ config='{"settings": {
         "accelerate": true,
         "eval_hf_model": false,
         "negatives": false,
-        "epochs": 3,
+        "epochs": 1,
         "batch_size": '$batch_size',  
         "lr": '$lr'
         },

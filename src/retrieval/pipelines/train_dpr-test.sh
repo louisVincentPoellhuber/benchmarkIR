@@ -7,7 +7,8 @@ batch_size=28
 lr=1e-5
 
 # Baseline
-exp_name="script_test"
+exp_name="gradient_accumulation_10"
+export EXP_NAME=$exp_name
 
 echo Training.
 
@@ -40,7 +41,8 @@ config='{"settings": {
         "negatives": false,
         "epochs": 1,
         "batch_size": '$batch_size',  
-        "lr": '$lr'
+        "lr": '$lr', 
+        "gradient_accumulation_steps": 10
         },
         "config":'$model_config'}'
 

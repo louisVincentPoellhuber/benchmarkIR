@@ -3,7 +3,7 @@
 #SBATCH --partition=rali
 #SBATCH --verbose
 #SBATCH --cpus-per-task=32
-#SBATCH --mem=200G
+#SBATCH --mem=500G
 
 STORAGE_DIR=/part/$2/Tmp/lvpoellhuber
 
@@ -11,6 +11,8 @@ echo $STORAGE_DIR
 
 # This should already exist on Octal31
 source $STORAGE_DIR/bmir-env/bin/activate
+
+# pip install -r src/requirements.txt
 
 export STORAGE_DIR=$STORAGE_DIR
 export COMET_API_KEY=TzEzoqltg1eu3XaFzpKHYuQaD
@@ -21,6 +23,7 @@ cd Documents/Masters/benchmarkIR
 
 # Change the pipeline or script to the one you wanna runs
 set -x
-bash src/retrieval/pipelines/$1     
+# bash src/retrieval/pipelines/$1     
+bash src/longtriever/pipelines/$1     
 
 

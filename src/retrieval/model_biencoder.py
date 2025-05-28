@@ -19,7 +19,7 @@ from preprocessing.preprocess_utils import tensorize_batch
 from beir.retrieval.models.pooling import cls_pooling, eos_pooling, mean_pooling
 from beir.retrieval.models.util import extract_corpus_sentences
 import os
-from modeling_utils import log_message
+from modeling_utils import *
 
 logger = logging.getLogger(__name__)
 
@@ -156,8 +156,9 @@ class BiEncoder:
 
         with context_manager:
             if not self.q_model.training:
-                for start_idx in trange(0, len(queries), self.batch_size):
-                    sub_queries = [self.query_prefix + query for query in queries[start_idx : start_idx + self.batch_size]]
+                batch_size = kwargs.get("batch_size", self.batch_size)
+                for start_idx in trange(0, len(queries), batch_size):
+                    sub_queries = [self.query_prefix + query for query in queries[start_idx : start_idx + batch_size]]
                     query_embeddings.append(self._encode_queries(sub_queries))
                 query_embeddings = torch.cat(query_embeddings)
             else:
@@ -192,9 +193,10 @@ class BiEncoder:
     
         with context_manager:            
             if not self.doc_model.training: # If evaluating, the batching loop happens HERE
-                for start_idx in trange(0, len(sentences), self.batch_size):
+                batch_size = kwargs.get("batch_size", self.batch_size)
+                for start_idx in trange(0, len(sentences), batch_size):
                     sub_sentences = [
-                        self.doc_prefix + sentence for sentence in sentences[start_idx : start_idx + self.batch_size]
+                        self.doc_prefix + sentence for sentence in sentences[start_idx : start_idx + batch_size]
                     ]
                     corpus_embeddings.append(self._encode_corpus(sub_sentences))
                 corpus_embeddings = torch.cat(corpus_embeddings)
@@ -383,14 +385,26 @@ class LongBiEncoder(BiEncoder):
 
             return self.pooling_func(query_output, query_input["attention_mask"])
         else:
+            # tic = time.time()
             query_input = self.batch_tokenize(sub_queries, self.q_model.device)
+            # toc = time.time()
+            # log_message(f"Query data collation: {toc-tic:.5f}s")
+            # tic = time.time()
             query_output = self.q_model(**query_input)
+            # toc = time.time()
+            # log_message(f"Query model: {toc-tic:.5f}s")
 
             return query_output
     
     def _encode_corpus(self, sub_sentences: list[str], **kwargs) -> list[Tensor] | np.ndarray | Tensor:
+        # tic = time.time()
         ctx_input = self.batch_tokenize(sub_sentences, self.doc_model.device)
+        # toc = time.time()
+        # log_message(f"Document data collation: {toc-tic:.5f}s")
+        # tic = time.time()
         ctx_output = self.doc_model(**ctx_input)
+        # toc = time.time()
+        # log_message(f"Document model: {toc-tic:.5f}s")
        
         return ctx_output
     
@@ -401,7 +415,6 @@ class LongBiEncoder(BiEncoder):
             results=self.block_tokenize(e)
             input_ids_batch.append(results['input_ids_blocks'])
             attention_mask_batch.append(results['attention_mask_blocks'])
-
 
         input_ids_batch = tensorize_batch(input_ids_batch, self.tokenizer.pad_token_id, align_right=self.align_right).to(device)  # [B,N,L]
         attention_mask_batch = tensorize_batch(attention_mask_batch, 0, align_right=self.align_right).to(device)  # [B,N,L]

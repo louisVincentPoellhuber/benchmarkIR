@@ -1,0 +1,393 @@
+2025-05-06 14:08 - WARNING - ========================= Finetuning OG longtriever =========================
+2025-05-06 14:08 - WARNING - Process rank: 0, device: cuda:0, n_gpu: 1distributed training: True, 16-bits training: True
+2025-05-06 14:08 - INFO - Training/evaluation parameters TrainingArguments(
+_n_gpu=1,
+accelerator_config={'split_batches': False, 'dispatch_batches': None, 'even_batches': True, 'use_seedable_sampler': True, 'non_blocking': False, 'gradient_accumulation_kwargs': None, 'use_configured_state': False},
+adafactor=False,
+adam_beta1=0.9,
+adam_beta2=0.999,
+adam_epsilon=1e-08,
+auto_find_batch_size=False,
+batch_eval_metrics=False,
+bf16=False,
+bf16_full_eval=False,
+data_seed=None,
+dataloader_drop_last=True,
+dataloader_num_workers=12,
+dataloader_persistent_workers=False,
+dataloader_pin_memory=True,
+dataloader_prefetch_factor=None,
+ddp_backend=None,
+ddp_broadcast_buffers=None,
+ddp_bucket_cap_mb=None,
+ddp_find_unused_parameters=None,
+ddp_timeout=1800,
+debug=[],
+deepspeed=None,
+disable_tqdm=False,
+dispatch_batches=None,
+do_eval=False,
+do_predict=False,
+do_train=True,
+eval_accumulation_steps=None,
+eval_delay=0,
+eval_do_concat_batches=True,
+eval_on_start=False,
+eval_steps=None,
+eval_strategy=IntervalStrategy.NO,
+eval_use_gather_object=False,
+evaluation_strategy=None,
+fp16=True,
+fp16_backend=auto,
+fp16_full_eval=False,
+fp16_opt_level=O1,
+fsdp=[],
+fsdp_config={'min_num_params': 0, 'xla': False, 'xla_fsdp_v2': False, 'xla_fsdp_grad_ckpt': False},
+fsdp_min_num_params=0,
+fsdp_transformer_layer_cls_to_wrap=None,
+full_determinism=False,
+gradient_accumulation_steps=1,
+gradient_checkpointing=False,
+gradient_checkpointing_kwargs=None,
+greater_is_better=None,
+group_by_length=False,
+half_precision_backend=auto,
+hub_always_push=False,
+hub_model_id=None,
+hub_private_repo=False,
+hub_strategy=HubStrategy.EVERY_SAVE,
+hub_token=<HUB_TOKEN>,
+ignore_data_skip=False,
+include_for_metrics=[],
+include_inputs_for_metrics=False,
+include_num_input_tokens_seen=False,
+include_tokens_per_second=False,
+jit_mode_eval=False,
+label_names=None,
+label_smoothing_factor=0.0,
+learning_rate=0.0001,
+length_column_name=length,
+load_best_model_at_end=False,
+local_rank=0,
+log_level=passive,
+log_level_replica=warning,
+log_on_each_node=True,
+logging_dir=/Tmp/lvpoellhuber/models/longtriever_og/og_longtriever_fp16/runs/May06_14-08-23_octal33,
+logging_first_step=False,
+logging_nan_inf_filter=True,
+logging_steps=100,
+logging_strategy=IntervalStrategy.STEPS,
+lr_scheduler_kwargs={},
+lr_scheduler_type=SchedulerType.LINEAR,
+max_grad_norm=1.0,
+max_steps=-1,
+metric_for_best_model=None,
+mp_parameters=,
+neftune_noise_alpha=None,
+no_cuda=False,
+num_train_epochs=1.0,
+optim=OptimizerNames.ADAMW_TORCH,
+optim_args=None,
+optim_target_modules=None,
+output_dir=/Tmp/lvpoellhuber/models/longtriever_og/og_longtriever_fp16,
+overwrite_output_dir=True,
+past_index=-1,
+per_device_eval_batch_size=8,
+per_device_train_batch_size=10,
+prediction_loss_only=False,
+push_to_hub=False,
+push_to_hub_model_id=None,
+push_to_hub_organization=None,
+push_to_hub_token=<PUSH_TO_HUB_TOKEN>,
+ray_scope=last,
+remove_unused_columns=False,
+report_to=['comet_ml'],
+restore_callback_states_from_checkpoint=False,
+resume_from_checkpoint=None,
+run_name=/Tmp/lvpoellhuber/models/longtriever_og/og_longtriever_fp16,
+save_on_each_node=False,
+save_only_model=False,
+save_safetensors=True,
+save_steps=500,
+save_strategy=IntervalStrategy.EPOCH,
+save_total_limit=None,
+seed=43,
+skip_memory_metrics=True,
+split_batches=None,
+tf32=None,
+torch_compile=False,
+torch_compile_backend=None,
+torch_compile_mode=None,
+torch_empty_cache_steps=None,
+torchdynamo=None,
+tpu_metrics_debug=False,
+tpu_num_cores=None,
+use_cpu=False,
+use_ipex=False,
+use_legacy_prediction_loop=False,
+use_liger_kernel=False,
+use_mps_device=False,
+warmup_ratio=0.0,
+warmup_steps=0,
+weight_decay=0.0,
+)
+2025-05-06 14:08 - INFO - Loading dataset for fine-tuning
+2025-05-06 14:09 - INFO - Loading model for fine-tuning
+2025-05-06 14:13 - WARNING - ========================= Finetuning OG longtriever =========================
+2025-05-06 14:13 - WARNING - Process rank: 0, device: cuda:0, n_gpu: 1distributed training: True, 16-bits training: True
+2025-05-06 14:13 - INFO - Training/evaluation parameters TrainingArguments(
+_n_gpu=1,
+accelerator_config={'split_batches': False, 'dispatch_batches': None, 'even_batches': True, 'use_seedable_sampler': True, 'non_blocking': False, 'gradient_accumulation_kwargs': None, 'use_configured_state': False},
+adafactor=False,
+adam_beta1=0.9,
+adam_beta2=0.999,
+adam_epsilon=1e-08,
+auto_find_batch_size=False,
+batch_eval_metrics=False,
+bf16=False,
+bf16_full_eval=False,
+data_seed=None,
+dataloader_drop_last=True,
+dataloader_num_workers=12,
+dataloader_persistent_workers=False,
+dataloader_pin_memory=True,
+dataloader_prefetch_factor=None,
+ddp_backend=None,
+ddp_broadcast_buffers=None,
+ddp_bucket_cap_mb=None,
+ddp_find_unused_parameters=None,
+ddp_timeout=1800,
+debug=[],
+deepspeed=None,
+disable_tqdm=False,
+dispatch_batches=None,
+do_eval=False,
+do_predict=False,
+do_train=True,
+eval_accumulation_steps=None,
+eval_delay=0,
+eval_do_concat_batches=True,
+eval_on_start=False,
+eval_steps=None,
+eval_strategy=IntervalStrategy.NO,
+eval_use_gather_object=False,
+evaluation_strategy=None,
+fp16=True,
+fp16_backend=auto,
+fp16_full_eval=False,
+fp16_opt_level=O1,
+fsdp=[],
+fsdp_config={'min_num_params': 0, 'xla': False, 'xla_fsdp_v2': False, 'xla_fsdp_grad_ckpt': False},
+fsdp_min_num_params=0,
+fsdp_transformer_layer_cls_to_wrap=None,
+full_determinism=False,
+gradient_accumulation_steps=1,
+gradient_checkpointing=False,
+gradient_checkpointing_kwargs=None,
+greater_is_better=None,
+group_by_length=False,
+half_precision_backend=auto,
+hub_always_push=False,
+hub_model_id=None,
+hub_private_repo=False,
+hub_strategy=HubStrategy.EVERY_SAVE,
+hub_token=<HUB_TOKEN>,
+ignore_data_skip=False,
+include_for_metrics=[],
+include_inputs_for_metrics=False,
+include_num_input_tokens_seen=False,
+include_tokens_per_second=False,
+jit_mode_eval=False,
+label_names=None,
+label_smoothing_factor=0.0,
+learning_rate=0.0001,
+length_column_name=length,
+load_best_model_at_end=False,
+local_rank=0,
+log_level=passive,
+log_level_replica=warning,
+log_on_each_node=True,
+logging_dir=/Tmp/lvpoellhuber/models/longtriever_og/og_longtriever_fp16/runs/May06_14-13-44_octal33,
+logging_first_step=False,
+logging_nan_inf_filter=True,
+logging_steps=100,
+logging_strategy=IntervalStrategy.STEPS,
+lr_scheduler_kwargs={},
+lr_scheduler_type=SchedulerType.LINEAR,
+max_grad_norm=1.0,
+max_steps=-1,
+metric_for_best_model=None,
+mp_parameters=,
+neftune_noise_alpha=None,
+no_cuda=False,
+num_train_epochs=1.0,
+optim=OptimizerNames.ADAMW_TORCH,
+optim_args=None,
+optim_target_modules=None,
+output_dir=/Tmp/lvpoellhuber/models/longtriever_og/og_longtriever_fp16,
+overwrite_output_dir=True,
+past_index=-1,
+per_device_eval_batch_size=8,
+per_device_train_batch_size=10,
+prediction_loss_only=False,
+push_to_hub=False,
+push_to_hub_model_id=None,
+push_to_hub_organization=None,
+push_to_hub_token=<PUSH_TO_HUB_TOKEN>,
+ray_scope=last,
+remove_unused_columns=False,
+report_to=['comet_ml'],
+restore_callback_states_from_checkpoint=False,
+resume_from_checkpoint=None,
+run_name=/Tmp/lvpoellhuber/models/longtriever_og/og_longtriever_fp16,
+save_on_each_node=False,
+save_only_model=False,
+save_safetensors=True,
+save_steps=500,
+save_strategy=IntervalStrategy.EPOCH,
+save_total_limit=None,
+seed=43,
+skip_memory_metrics=True,
+split_batches=None,
+tf32=None,
+torch_compile=False,
+torch_compile_backend=None,
+torch_compile_mode=None,
+torch_empty_cache_steps=None,
+torchdynamo=None,
+tpu_metrics_debug=False,
+tpu_num_cores=None,
+use_cpu=False,
+use_ipex=False,
+use_legacy_prediction_loop=False,
+use_liger_kernel=False,
+use_mps_device=False,
+warmup_ratio=0.0,
+warmup_steps=0,
+weight_decay=0.0,
+)
+2025-05-06 14:13 - INFO - Loading dataset for fine-tuning
+2025-05-06 14:14 - INFO - Loading model for fine-tuning
+2025-05-06 17:43 - INFO - Saving model checkpoint to /Tmp/lvpoellhuber/models/longtriever_og/og_longtriever_fp16/checkpoint-36623
+2025-05-06 17:43 - INFO - Saving model checkpoint to /Tmp/lvpoellhuber/models/longtriever_og/og_longtriever_fp16/checkpoint-36623
+2025-05-06 17:43 - INFO - Saving model checkpoint to /Tmp/lvpoellhuber/models/longtriever_og/og_longtriever_fp16
+2025-05-07 09:56 - WARNING - ========================= Evaluating run og_longtriever_fp16.=========================
+2025-05-07 09:56 - INFO - Loading Corpus...
+2025-05-07 09:57 - INFO - Loaded 3201821 TEST Documents.
+2025-05-07 09:57 - INFO - Doc Example: {'text': 'Science & Mathematics Physics The hot glowing surfaces of stars emit energy in the form of electromagnetic radiation.? It is a good approximation to assume that the emissivity e is equal to 1 for these surfaces. Find the radius of the star Rigel, the bright blue star in the constellation Orion that radiates energy at a rate of 2.7 x 10^32 W and has a surface temperature of 11,000 K. Assume that the star is spherical. Use σ =... show more Follow 3 answers Answers Relevance Rating Newest Oldest Best Answer: Stefan-Boltzmann law states that the energy flux by radiation is proportional to the forth power of the temperature: q = ε · σ · T^4 The total energy flux at a spherical surface of Radius R is Q = q·π·R² = ε·σ·T^4·π·R² Hence the radius is R = √ ( Q / (ε·σ·T^4·π) ) = √ ( 2.7x10+32 W / (1 · 5.67x10-8W/m²K^4 · (1100K)^4 · π) ) = 3.22x10+13 m Source (s):http://en.wikipedia.org/wiki/Stefan_bolt...schmiso · 1 decade ago0 18 Comment Schmiso, you forgot a 4 in your answer. Your link even says it: L = 4pi (R^2)sigma (T^4). Using L, luminosity, as the energy in this problem, you can find the radius R by doing sqrt (L/ (4pisigma (T^4)). Hope this helps everyone. Caroline · 4 years ago4 1 Comment (Stefan-Boltzmann law) L = 4pi*R^2*sigma*T^4 Solving for R we get: => R = (1/ (2T^2)) * sqrt (L/ (pi*sigma)) Plugging in your values you should get: => R = (1/ (2 (11,000K)^2)) *sqrt ( (2.7*10^32W)/ (pi * (5.67*10^-8 W/m^2K^4))) R = 1.609 * 10^11 m? · 3 years ago0 1 Comment Maybe you would like to learn more about one of these? Want to build a free website? Interested in dating sites? Need a Home Security Safe? How to order contacts online?', 'title': 'The hot glowing surfaces of stars emit energy in the form of electromagnetic radiation.?'}
+2025-05-07 09:57 - INFO - Loading Queries...
+2025-05-07 09:57 - INFO - Loaded 5187 TEST Queries.
+2025-05-07 09:57 - INFO - Query Example:  androgen receptor define
+2025-05-07 09:57 - WARNING - Indexing.
+2025-05-07 09:57 - INFO - Sorting Corpus by document length (Longest first)...
+2025-05-07 09:57 - INFO - Encoding Corpus in batches... Warning: This might take a while!
+2025-05-07 09:57 - INFO - Encoding Batch 1/65. Normalize: False...
+2025-05-07 10:19 - INFO - Encoding Batch 2/65. Normalize: False...
+2025-05-07 10:39 - INFO - Encoding Batch 3/65. Normalize: False...
+2025-05-07 10:59 - INFO - Encoding Batch 4/65. Normalize: False...
+2025-05-07 11:19 - INFO - Encoding Batch 5/65. Normalize: False...
+2025-05-07 11:39 - INFO - Encoding Batch 6/65. Normalize: False...
+2025-05-07 11:59 - INFO - Encoding Batch 7/65. Normalize: False...
+2025-05-07 12:19 - INFO - Encoding Batch 8/65. Normalize: False...
+2025-05-07 12:38 - INFO - Encoding Batch 9/65. Normalize: False...
+2025-05-07 12:57 - INFO - Encoding Batch 10/65. Normalize: False...
+2025-05-07 13:15 - INFO - Encoding Batch 11/65. Normalize: False...
+2025-05-07 13:31 - INFO - Encoding Batch 12/65. Normalize: False...
+2025-05-07 13:47 - INFO - Encoding Batch 13/65. Normalize: False...
+2025-05-07 14:02 - INFO - Encoding Batch 14/65. Normalize: False...
+2025-05-07 14:16 - INFO - Encoding Batch 15/65. Normalize: False...
+2025-05-07 14:29 - INFO - Encoding Batch 16/65. Normalize: False...
+2025-05-07 14:42 - INFO - Encoding Batch 17/65. Normalize: False...
+2025-05-07 14:54 - INFO - Encoding Batch 18/65. Normalize: False...
+2025-05-07 15:05 - INFO - Encoding Batch 19/65. Normalize: False...
+2025-05-07 15:16 - INFO - Encoding Batch 20/65. Normalize: False...
+2025-05-07 15:26 - INFO - Encoding Batch 21/65. Normalize: False...
+2025-05-07 15:36 - INFO - Encoding Batch 22/65. Normalize: False...
+2025-05-07 15:46 - INFO - Encoding Batch 23/65. Normalize: False...
+2025-05-07 15:55 - INFO - Encoding Batch 24/65. Normalize: False...
+2025-05-07 16:04 - INFO - Encoding Batch 25/65. Normalize: False...
+2025-05-07 16:13 - INFO - Encoding Batch 26/65. Normalize: False...
+2025-05-07 16:21 - INFO - Encoding Batch 27/65. Normalize: False...
+2025-05-07 16:29 - INFO - Encoding Batch 28/65. Normalize: False...
+2025-05-07 16:37 - INFO - Encoding Batch 29/65. Normalize: False...
+2025-05-07 16:44 - INFO - Encoding Batch 30/65. Normalize: False...
+2025-05-07 16:52 - INFO - Encoding Batch 31/65. Normalize: False...
+2025-05-07 16:59 - INFO - Encoding Batch 32/65. Normalize: False...
+2025-05-07 17:07 - INFO - Encoding Batch 33/65. Normalize: False...
+2025-05-07 17:14 - INFO - Encoding Batch 34/65. Normalize: False...
+2025-05-07 17:21 - INFO - Encoding Batch 35/65. Normalize: False...
+2025-05-07 17:27 - INFO - Encoding Batch 36/65. Normalize: False...
+2025-05-07 17:34 - INFO - Encoding Batch 37/65. Normalize: False...
+2025-05-07 17:40 - INFO - Encoding Batch 38/65. Normalize: False...
+2025-05-07 17:46 - INFO - Encoding Batch 39/65. Normalize: False...
+2025-05-07 17:52 - INFO - Encoding Batch 40/65. Normalize: False...
+2025-05-07 17:58 - INFO - Encoding Batch 41/65. Normalize: False...
+2025-05-07 18:04 - INFO - Encoding Batch 42/65. Normalize: False...
+2025-05-07 18:11 - INFO - Encoding Batch 43/65. Normalize: False...
+2025-05-07 18:17 - INFO - Encoding Batch 44/65. Normalize: False...
+2025-05-07 18:23 - INFO - Encoding Batch 45/65. Normalize: False...
+2025-05-07 18:28 - INFO - Encoding Batch 46/65. Normalize: False...
+2025-05-07 18:33 - INFO - Encoding Batch 47/65. Normalize: False...
+2025-05-07 18:38 - INFO - Encoding Batch 48/65. Normalize: False...
+2025-05-07 18:43 - INFO - Encoding Batch 49/65. Normalize: False...
+2025-05-07 18:48 - INFO - Encoding Batch 50/65. Normalize: False...
+2025-05-07 18:52 - INFO - Encoding Batch 51/65. Normalize: False...
+2025-05-07 18:55 - INFO - Encoding Batch 52/65. Normalize: False...
+2025-05-07 18:58 - INFO - Encoding Batch 53/65. Normalize: False...
+2025-05-07 19:01 - INFO - Encoding Batch 54/65. Normalize: False...
+2025-05-07 19:03 - INFO - Encoding Batch 55/65. Normalize: False...
+2025-05-07 19:05 - INFO - Encoding Batch 56/65. Normalize: False...
+2025-05-07 19:07 - INFO - Encoding Batch 57/65. Normalize: False...
+2025-05-07 19:09 - INFO - Encoding Batch 58/65. Normalize: False...
+2025-05-07 19:10 - INFO - Encoding Batch 59/65. Normalize: False...
+2025-05-07 19:12 - INFO - Encoding Batch 60/65. Normalize: False...
+2025-05-07 19:13 - INFO - Encoding Batch 61/65. Normalize: False...
+2025-05-07 19:14 - INFO - Encoding Batch 62/65. Normalize: False...
+2025-05-07 19:15 - INFO - Encoding Batch 63/65. Normalize: False...
+2025-05-07 19:15 - INFO - Encoding Batch 64/65. Normalize: False...
+2025-05-07 19:16 - INFO - Encoding Batch 65/65. Normalize: False...
+2025-05-07 19:16 - INFO - Indexing Passages into Faiss...
+2025-05-07 19:16 - WARNING - Saving.
+2025-05-07 19:16 - INFO - Saving Faiss ID-mappings to path: /Tmp/lvpoellhuber/models/longtriever_og/og_longtriever_fp16/default.flat.tsv
+2025-05-07 19:16 - INFO - Saving Faiss Index to path: /Tmp/lvpoellhuber/models/longtriever_og/og_longtriever_fp16/default.flat.faiss
+2025-05-07 19:16 - INFO - Index size: 9835.99MB
+2025-05-07 19:16 - WARNING - Retrieving.
+2025-05-07 19:16 - INFO - Computing Query Embeddings. Normalize: False...
+2025-05-07 19:22 - INFO - Total search time: 379.602
+2025-05-07 19:22 - WARNING - Evaluating.
+2025-05-07 19:22 - INFO - For evaluation, we ignore identical query and document ids (default), please explicitly set ``ignore_identical_ids=False`` to ignore this.
+2025-05-07 19:22 - INFO - 
+
+2025-05-07 19:22 - INFO - NDCG@1: 0.1245
+2025-05-07 19:22 - INFO - NDCG@3: 0.1944
+2025-05-07 19:22 - INFO - NDCG@5: 0.2245
+2025-05-07 19:22 - INFO - NDCG@10: 0.2549
+2025-05-07 19:22 - INFO - NDCG@100: 0.3119
+2025-05-07 19:22 - INFO - NDCG@1000: 0.3322
+2025-05-07 19:22 - INFO - 
+
+2025-05-07 19:22 - INFO - MAP@1: 0.1245
+2025-05-07 19:22 - INFO - MAP@3: 0.1769
+2025-05-07 19:22 - INFO - MAP@5: 0.1935
+2025-05-07 19:22 - INFO - MAP@10: 0.2062
+2025-05-07 19:22 - INFO - MAP@100: 0.2170
+2025-05-07 19:22 - INFO - MAP@1000: 0.2177
+2025-05-07 19:22 - INFO - 
+
+2025-05-07 19:22 - INFO - Recall@1: 0.1245
+2025-05-07 19:22 - INFO - Recall@3: 0.2454
+2025-05-07 19:22 - INFO - Recall@5: 0.3185
+2025-05-07 19:22 - INFO - Recall@10: 0.4118
+2025-05-07 19:22 - INFO - Recall@100: 0.6879
+2025-05-07 19:22 - INFO - Recall@1000: 0.8517
+2025-05-07 19:22 - INFO - 
+
+2025-05-07 19:22 - INFO - P@1: 0.1245
+2025-05-07 19:22 - INFO - P@3: 0.0818
+2025-05-07 19:22 - INFO - P@5: 0.0637
+2025-05-07 19:22 - INFO - P@10: 0.0412
+2025-05-07 19:22 - INFO - P@100: 0.0069
+2025-05-07 19:22 - INFO - P@1000: 0.0008
+2025-05-07 19:22 - INFO - 
+
+2025-05-07 19:22 - INFO - MRR: 0.2177

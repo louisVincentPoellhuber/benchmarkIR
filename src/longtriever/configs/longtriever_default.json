@@ -1,0 +1,15 @@
+{
+    "task": "msmarco-doc-short", 
+    "exp_name": "default",
+    "output_dir": "/Tmp/lvpoellhuber/models/longtriever_og/default",
+    "model_name_or_path": "/Tmp/lvpoellhuber/models/longtriever_og/pretrained/bert-base-uncased",
+    "model_type": "longtriever",
+    "eval_hf_model": false,
+    "negatives": false,
+    "normalize": false,
+    "epochs": 1,
+    "per_device_train_batch_size": 3, 
+    "lr": 1e-4, 
+    "inter_block_encoder": true,
+    "report_to": "comet_ml"
+}

@@ -1,14 +1,15 @@
 {
     "settings": {
         "task": "msmarco-doc-short", 
-        "exp_name": "longtriever_og",
-        "save_path": "./output_longtriever_finetune_long2",
+        "exp_name": "debug",
+        "save_path": "/Tmp/lvpoellhuber/models/longtriever_og/unnorm_test",
         "eval_hf_model": false,
         "negatives": false,
+        "normalize": false,
         "accelerate": true,
         "logging": true,
         "epochs": 1,
-        "batch_size": 6, 
+        "batch_size": 3, 
         "lr": 1e-4
     }
 }

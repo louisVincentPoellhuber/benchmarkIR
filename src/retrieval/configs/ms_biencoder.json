@@ -1,0 +1,24 @@
+{
+    "settings": {
+        "task": "msmarco-doc", 
+        "exp_name": "ms_biencoder_sanitycheck-octal27",
+        "save_path": "STORAGE_DIR/models/longtriever/ms_biencoder_sanitycheck-octal27",
+        "eval_hf_model": false,
+        "negatives": false,
+        "accelerate": true,
+        "logging": true,
+        "epochs": 1,
+        "batch_size": 28, 
+        "lr": 1e-5
+    }, 
+    "config": {
+        "q_model": "bert-base-uncased",
+        "doc_model": "bert-base-uncased",
+        "shared_encoder": false,
+        "normalize": false, 
+        "attn_implementation": "eager", 
+        "query_prompt": "",
+        "passage_prompt": "", 
+        "sep": " [SEP] "
+    }
+}

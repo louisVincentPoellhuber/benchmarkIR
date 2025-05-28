@@ -22,7 +22,7 @@ STORAGE_DIR = os.getenv("STORAGE_DIR")
 
 def parse_arguments():
     argparser = argparse.ArgumentParser("BenchmarkIR Script")
-    argparser.add_argument('--config', default="test_lt_ckpt_15")
+    argparser.add_argument('--config', default="longtriever_debug")
     argparser.add_argument('--config_dict', default={}) 
     
     args = argparser.parse_args()
@@ -66,8 +66,8 @@ def evaluate_dpr(arg_dict):
         
     dpr_model.eval()
 
-    # faiss_search = FlatIPFaissSearch(dpr_model, batch_size=batch_size)
-    faiss_search = CustomFaissSearch(dpr_model, batch_size=batch_size, index_path=dpr_path)
+    faiss_search = FlatIPFaissSearch(dpr_model, batch_size=batch_size)
+    # faiss_search = CustomFaissSearch(dpr_model, batch_size=batch_size, index_path=dpr_path)
 
     data_path = os.path.join(STORAGE_DIR, "datasets", task)
     if task=="nq": 
@@ -83,18 +83,19 @@ def evaluate_dpr(arg_dict):
         log_message("Saving.")
         faiss_search.save(dpr_path, prefix="default")
 
-    retriever = EvaluateRetrieval(faiss_search, score_function="dot")
+    # retriever = EvaluateRetrieval(faiss_search, score_function="dot")
+    retriever = CustomEvaluateRetrieval(faiss_search, score_function="dot")
 
     log_message("Retrieving.")
     results = retriever.retrieve(corpus, queries)
 
     log_message("Evaluating.")
-    ndcg, _map, recall, precision = retriever.evaluate(qrels, results, retriever.k_values)
+    ndcg, _map, recall, precision, mrr = retriever.evaluate(qrels, results, retriever.k_values)
     
     metrics_path = os.path.join(dpr_path, f"{task}_metrics.txt")
     with open(metrics_path, "w") as metrics_file:
         metrics_file.write("Retriever evaluation for k in: {}".format(retriever.k_values))
-        metrics_file.write(f"\nNDCG: {ndcg}\nRecall: {recall}\nPrecision: {precision}\n")
+        metrics_file.write(f"\nNDCG: {ndcg}\nRecall: {recall}\nPrecision: {precision}\nMAP: {_map}\nMRR: {mrr}\n")
 
         top_k = 10
 

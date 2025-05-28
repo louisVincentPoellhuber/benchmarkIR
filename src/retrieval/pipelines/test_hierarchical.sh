@@ -5,6 +5,7 @@ dataset=$STORAGE_DIR'/datasets'
 batch_size=3
 lr=1e-4
 exp_name="hierarchical_long"
+export EXP_NAME=$exp_name
 
 model_path=$STORAGE_DIR'/models/hierarchical/'$exp_name
 echo $model_path

@@ -8,6 +8,7 @@ lr=1e-5
 
 # Baseline
 exp_name="triplets_20_epochs"
+export EXP_NAME=$exp_name
 
 echo Training.
 
@@ -49,7 +50,7 @@ export TORCH_NCCL_ASYNC_ERROR_HANDLING=1
 export NCCL_P2P_DISABLE=1
 export NCCL_IB_DISABLE=1
 # --multi_gpu --num_processes 4 --gpu_ids 0,1,2,3 
-# accelerate launch src/retrieval/train_dpr.py --config_dict "$config"
+accelerate launch src/retrieval/train_dpr.py --config_dict "$config"
 # python src/retrieval/train_dpr.py --config_dict "$config"
 
 python src/retrieval/evaluate_dpr.py  --config_dict "$config"

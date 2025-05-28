@@ -1,0 +1,68 @@
+2025-05-07 10:14 - WARNING - ========================= Evaluating run longtriever_debug.=========================
+2025-05-07 10:15 - WARNING - ========================= Evaluating run longtriever_debug.=========================
+2025-05-07 10:15 - INFO - Loading Corpus...
+2025-05-07 10:17 - INFO - Loaded 3201821 TEST Documents.
+2025-05-07 10:17 - INFO - Doc Example: {'text': 'Science & Mathematics Physics The hot glowing surfaces of stars emit energy in the form of electromagnetic radiation.? It is a good approximation to assume that the emissivity e is equal to 1 for these surfaces. Find the radius of the star Rigel, the bright blue star in the constellation Orion that radiates energy at a rate of 2.7 x 10^32 W and has a surface temperature of 11,000 K. Assume that the star is spherical. Use σ =... show more Follow 3 answers Answers Relevance Rating Newest Oldest Best Answer: Stefan-Boltzmann law states that the energy flux by radiation is proportional to the forth power of the temperature: q = ε · σ · T^4 The total energy flux at a spherical surface of Radius R is Q = q·π·R² = ε·σ·T^4·π·R² Hence the radius is R = √ ( Q / (ε·σ·T^4·π) ) = √ ( 2.7x10+32 W / (1 · 5.67x10-8W/m²K^4 · (1100K)^4 · π) ) = 3.22x10+13 m Source (s):http://en.wikipedia.org/wiki/Stefan_bolt...schmiso · 1 decade ago0 18 Comment Schmiso, you forgot a 4 in your answer. Your link even says it: L = 4pi (R^2)sigma (T^4). Using L, luminosity, as the energy in this problem, you can find the radius R by doing sqrt (L/ (4pisigma (T^4)). Hope this helps everyone. Caroline · 4 years ago4 1 Comment (Stefan-Boltzmann law) L = 4pi*R^2*sigma*T^4 Solving for R we get: => R = (1/ (2T^2)) * sqrt (L/ (pi*sigma)) Plugging in your values you should get: => R = (1/ (2 (11,000K)^2)) *sqrt ( (2.7*10^32W)/ (pi * (5.67*10^-8 W/m^2K^4))) R = 1.609 * 10^11 m? · 3 years ago0 1 Comment Maybe you would like to learn more about one of these? Want to build a free website? Interested in dating sites? Need a Home Security Safe? How to order contacts online?', 'title': 'The hot glowing surfaces of stars emit energy in the form of electromagnetic radiation.?'}
+2025-05-07 10:17 - INFO - Loading Queries...
+2025-05-07 10:17 - INFO - Loaded 5187 TEST Queries.
+2025-05-07 10:17 - INFO - Query Example:  androgen receptor define
+2025-05-07 10:17 - WARNING - Indexing.
+2025-05-07 10:17 - INFO - Sorting Corpus by document length (Longest first)...
+2025-05-07 10:18 - INFO - Encoding Corpus in batches... Warning: This might take a while!
+2025-05-07 10:18 - INFO - Encoding Batch 1/65. Normalize: False...
+2025-05-07 10:18 - WARNING - ========================= Evaluating run longtriever_debug.=========================
+2025-05-07 10:18 - INFO - Loading Corpus...
+2025-05-07 10:20 - INFO - Loaded 3201821 TEST Documents.
+2025-05-07 10:20 - INFO - Doc Example: {'text': 'Science & Mathematics Physics The hot glowing surfaces of stars emit energy in the form of electromagnetic radiation.? It is a good approximation to assume that the emissivity e is equal to 1 for these surfaces. Find the radius of the star Rigel, the bright blue star in the constellation Orion that radiates energy at a rate of 2.7 x 10^32 W and has a surface temperature of 11,000 K. Assume that the star is spherical. Use σ =... show more Follow 3 answers Answers Relevance Rating Newest Oldest Best Answer: Stefan-Boltzmann law states that the energy flux by radiation is proportional to the forth power of the temperature: q = ε · σ · T^4 The total energy flux at a spherical surface of Radius R is Q = q·π·R² = ε·σ·T^4·π·R² Hence the radius is R = √ ( Q / (ε·σ·T^4·π) ) = √ ( 2.7x10+32 W / (1 · 5.67x10-8W/m²K^4 · (1100K)^4 · π) ) = 3.22x10+13 m Source (s):http://en.wikipedia.org/wiki/Stefan_bolt...schmiso · 1 decade ago0 18 Comment Schmiso, you forgot a 4 in your answer. Your link even says it: L = 4pi (R^2)sigma (T^4). Using L, luminosity, as the energy in this problem, you can find the radius R by doing sqrt (L/ (4pisigma (T^4)). Hope this helps everyone. Caroline · 4 years ago4 1 Comment (Stefan-Boltzmann law) L = 4pi*R^2*sigma*T^4 Solving for R we get: => R = (1/ (2T^2)) * sqrt (L/ (pi*sigma)) Plugging in your values you should get: => R = (1/ (2 (11,000K)^2)) *sqrt ( (2.7*10^32W)/ (pi * (5.67*10^-8 W/m^2K^4))) R = 1.609 * 10^11 m? · 3 years ago0 1 Comment Maybe you would like to learn more about one of these? Want to build a free website? Interested in dating sites? Need a Home Security Safe? How to order contacts online?', 'title': 'The hot glowing surfaces of stars emit energy in the form of electromagnetic radiation.?'}
+2025-05-07 10:20 - INFO - Loading Queries...
+2025-05-07 10:20 - INFO - Loaded 5187 TEST Queries.
+2025-05-07 10:20 - INFO - Query Example:  androgen receptor define
+2025-05-07 10:20 - INFO - Loading Faiss ID-mappings from path: /Tmp/lvpoellhuber/models/longtriever/longtriever_unclamped_old/default.flat.tsv
+2025-05-07 10:20 - INFO - Loading Faiss Index from path: /Tmp/lvpoellhuber/models/longtriever/longtriever_unclamped_old/default.flat.faiss
+2025-05-07 10:21 - WARNING - Already indexed, loading.
+2025-05-07 10:21 - WARNING - Retrieving.
+2025-05-07 10:22 - INFO - Computing Query Embeddings. Normalize: False...
+2025-05-07 10:23 - INFO - Total search time: 59.319
+2025-05-07 10:23 - WARNING - Evaluating.
+2025-05-07 10:23 - INFO - For evaluation, we ignore identical query and document ids (default), please explicitly set ``ignore_identical_ids=False`` to ignore this.
+2025-05-07 10:24 - INFO - 
+
+2025-05-07 10:24 - INFO - NDCG@1: 0.0000
+2025-05-07 10:24 - INFO - NDCG@3: 0.0000
+2025-05-07 10:24 - INFO - NDCG@5: 0.0000
+2025-05-07 10:24 - INFO - NDCG@10: 0.0000
+2025-05-07 10:24 - INFO - NDCG@100: 0.0005
+2025-05-07 10:24 - INFO - NDCG@1000: 0.0020
+2025-05-07 10:24 - INFO - 
+
+2025-05-07 10:24 - INFO - MAP@1: 0.0000
+2025-05-07 10:24 - INFO - MAP@3: 0.0000
+2025-05-07 10:24 - INFO - MAP@5: 0.0000
+2025-05-07 10:24 - INFO - MAP@10: 0.0000
+2025-05-07 10:24 - INFO - MAP@100: 0.0001
+2025-05-07 10:24 - INFO - MAP@1000: 0.0001
+2025-05-07 10:24 - INFO - 
+
+2025-05-07 10:24 - INFO - Recall@1: 0.0000
+2025-05-07 10:24 - INFO - Recall@3: 0.0000
+2025-05-07 10:24 - INFO - Recall@5: 0.0000
+2025-05-07 10:24 - INFO - Recall@10: 0.0000
+2025-05-07 10:24 - INFO - Recall@100: 0.0029
+2025-05-07 10:24 - INFO - Recall@1000: 0.0156
+2025-05-07 10:24 - INFO - 
+
+2025-05-07 10:24 - INFO - P@1: 0.0000
+2025-05-07 10:24 - INFO - P@3: 0.0000
+2025-05-07 10:24 - INFO - P@5: 0.0000
+2025-05-07 10:24 - INFO - P@10: 0.0000
+2025-05-07 10:24 - INFO - P@100: 0.0000
+2025-05-07 10:24 - INFO - P@1000: 0.0000
+2025-05-07 10:24 - INFO - 
+
+2025-05-07 10:24 - INFO - MRR: 0.0001
+2025-05-08 09:53 - WARNING - ========================= Finetuning run ms_biencoder_sanitycheck-octal27.=========================
+2025-05-08 09:53 - WARNING - Initializing training. 
+2025-05-08 09:53 - WARNING - Beginning training process. 
+2025-05-08 14:56 - WARNING - ========================= Finetuning run ms_biencoder_sanitycheck-octal27.=========================
+2025-05-08 14:56 - WARNING - Initializing training. 
+2025-05-08 14:56 - WARNING - Beginning training process. 

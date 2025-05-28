@@ -8,6 +8,7 @@ lr=1e-5
 
 # Baseline
 exp_name="shared_dpr"
+export EXP_NAME=$exp_name
 
 echo Training.
 

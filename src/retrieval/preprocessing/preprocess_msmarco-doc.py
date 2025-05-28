@@ -4,6 +4,9 @@ import csv
 import requests
 import pandas as pd
 from random import randint
+from pyserini.search.lucene import LuceneSearcher
+import subprocess
+import re
 
 def parse_arguments():
     argparser = argparse.ArgumentParser("Download MSMARCO dataset and preprocess it.")
@@ -68,16 +71,51 @@ def download_msmarco(out_dir):
             download_url(url = file_url, save_path = save_path)
 
 
+def preprocess_corpus(out_dir):
+    corpus_filepah = os.path.join(out_dir, "corpus.jsonl")
+
+    log_message("Writing corpus to disk")
+    with open(corpus_filepah, "w") as corpus_out, \
+        gzip.open(os.path.join(out_dir, "msmarco-docs.tsv.gz"), 'rt', encoding='utf8') as corpus_in:
+        print("Reading corpus all at once. This will take about two minutes.")
+        corpus_in_content = corpus_in.readlines()
+        
+        skipped_docs = ["D2070532", "D705499", "D3246147", "D3414215", "D3336081", "D3259427"] # Known problematic documentss
+        for doc_line in tqdm(corpus_in_content):
+            doc = doc_line.rstrip().split("\t")
+            if len(doc) == 4:
+                json.dump({"_id": doc[0], "title": doc[2], "text": doc[3]}, corpus_out)
+                corpus_out.write("\n")
+            else:
+                skipped_docs.append(doc[0])
+
+    skipped_doc_path = os.path.join(out_dir, "skipped_docs.csv")
+    pd.Series(skipped_docs).to_csv(skipped_doc_path, index=False, header=None)
+
+def preprocess_queries(out_dir):
+    querystring = {}
+    with gzip.open(os.path.join(out_dir, "msmarco-doctrain-queries.tsv.gz"), 'rt', encoding='utf8') as f:
+        tsvreader = csv.reader(f, delimiter="\t")
+        for [topicid, querystring_of_topicid] in tsvreader:
+            querystring[topicid] = querystring_of_topicid
+    with gzip.open(os.path.join(out_dir, "msmarco-docdev-queries.tsv.gz"), 'rt', encoding='utf8') as f:
+        tsvreader = csv.reader(f, delimiter="\t")
+        for [topicid, querystring_of_topicid] in tsvreader:
+            querystring[topicid] = querystring_of_topicid
+    
+
+    log_message("Writing queries to disk")
+    queries_filepah = os.path.join(out_dir, "queries.jsonl")
+
+    with open(queries_filepah, "w") as f:
+        for qid, query in tqdm(querystring.items()):
+            json.dump({"_id": qid, "text": query, "metadata": {}}, f)
+            f.write("\n")
+
 def preprocess_dev(out_dir):
     skipped_doc_path = os.path.join(out_dir, "skipped_docs.csv")
     skipped_docs = pd.read_csv(skipped_doc_path, header=None)[0].to_list()
     
-    dev_querystring = {}
-    with gzip.open(os.path.join(out_dir, "msmarco-docdev-queries.tsv.gz"), 'rt', encoding='utf8') as f:
-        tsvreader = csv.reader(f, delimiter="\t")
-        for [topicid, querystring_of_topicid] in tsvreader:
-            dev_querystring[topicid] = querystring_of_topicid
-
     dev_qrel = {}
     with gzip.open(os.path.join(out_dir, "msmarco-docdev-qrels.tsv.gz"), 'rt', encoding='utf8') as f:
         tsvreader = csv.reader(f, delimiter="\t")
@@ -88,11 +126,7 @@ def preprocess_dev(out_dir):
                 dev_qrel[topicid] = docid
 
     log_message("Writing qrels to disk")
-    qrel_dir = os.path.join(out_dir, "qrels")
-    if not os.path.exists(qrel_dir):
-        os.makedirs(qrel_dir)
     qrel_filepath = os.path.join(qrel_dir, "test.tsv")
-
 
     with open(qrel_filepath, "w", encoding="utf-8", newline="") as f:
         writer = csv.writer(f, delimiter="\t", lineterminator='\n')
@@ -101,64 +135,32 @@ def preprocess_dev(out_dir):
         
         for qid, docid in dev_qrel.items():
             writer.writerow([qid, docid, 1])
-        
-    log_message("Writing queries to disk")
-    queries_filepah = os.path.join(out_dir, "queries.jsonl")
 
-    with open(queries_filepah, "w") as f:
-        for qid, query in tqdm(dev_querystring.items()):
-            json.dump({"_id": qid, "text": query, "metadata": {}}, f)
-            f.write("\n")
 
 def preprocess_train(out_dir):
     skipped_doc_path = os.path.join(out_dir, "skipped_docs.csv")
     skipped_docs = pd.read_csv(skipped_doc_path, header=None)[0].to_list()
     
-    dev_querystring = {}
-    with gzip.open(os.path.join(out_dir, "msmarco-doctrain-queries.tsv.gz"), 'rt', encoding='utf8') as f:
-        tsvreader = csv.reader(f, delimiter="\t")
-        for [topicid, querystring_of_topicid] in tsvreader:
-            dev_querystring[topicid] = querystring_of_topicid
-
-    dev_qrel = {}
+    train_qrel = {}
     with gzip.open(os.path.join(out_dir, "msmarco-doctrain-qrels.tsv.gz"), 'rt', encoding='utf8') as f:
         tsvreader = csv.reader(f, delimiter="\t")
         for item in tsvreader:
             topicid, _, docid, rel = item[0].split(" ")
             assert rel == "1"
             if docid not in skipped_docs: # Skip  documents without text
-                dev_qrel[topicid] = docid
+                train_qrel[topicid] = docid
 
     log_message("Writing qrels to disk")
-    qrel_dir = os.path.join(out_dir, "qrels")
-    if not os.path.exists(qrel_dir):
-        os.makedirs(qrel_dir)
     qrel_filepath = os.path.join(qrel_dir, "train.tsv")
-
 
     with open(qrel_filepath, "w", encoding="utf-8", newline="") as f:
         writer = csv.writer(f, delimiter="\t", lineterminator='\n')
         
         writer.writerow(["query-id", "corpus-id", "score"])
         
-        for qid, docid in dev_qrel.items():
+        for qid, docid in train_qrel.items():
             writer.writerow([qid, docid, 1])
-        
-    log_message("Writing queries to disk")
-    queries_filepah = os.path.join(out_dir, "train_queries.jsonl")
 
-    with open(queries_filepah, "w") as f:
-        for qid, query in tqdm(dev_querystring.items()):
-            json.dump({"_id": qid, "text": query, "metadata": {}}, f)
-            f.write("\n")
-
-def load_jsonl(filepath):
-    corpus = {}
-    with open(filepath, "r", encoding="utf-8") as f:
-        for line in f:
-            doc = json.loads(line.strip())  # Parse each line as a JSON object
-            corpus[doc["_id"]] = doc  # Use the document ID as the key
-    return corpus
 
 def preprocess_train_pairs(out_dir):
     skipped_doc_path = os.path.join(out_dir, "skipped_docs.csv")
@@ -205,26 +207,6 @@ def preprocess_train_pairs(out_dir):
     dataset.save(save_path)
     log_message("File saved.")
 
-def preprocess_corpus(out_dir):
-    corpus_filepah = os.path.join(out_dir, "corpus.jsonl")
-
-    log_message("Writing corpus to disk")
-    with open(corpus_filepah, "w") as corpus_out, \
-        gzip.open(os.path.join(out_dir, "msmarco-docs.tsv.gz"), 'rt', encoding='utf8') as corpus_in:
-        print("Reading corpus all at once. This will take about two minutes.")
-        corpus_in_content = corpus_in.readlines()
-        
-        skipped_docs = ["D2070532", "D705499", "D3246147", "D3414215", "D3336081", "D3259427"] # Known problematic documentss
-        for doc_line in tqdm(corpus_in_content):
-            doc = doc_line.rstrip().split("\t")
-            if len(doc) == 4:
-                json.dump({"_id": doc[0], "title": doc[2], "text": doc[3]}, corpus_out)
-                corpus_out.write("\n")
-            else:
-                skipped_docs.append(doc[0])
-
-    skipped_doc_path = os.path.join(out_dir, "skipped_docs.csv")
-    pd.Series(skipped_docs).to_csv(skipped_doc_path, index=False, header=None)
 
 def preprocess_short(data_path, reduction_factor=0.08):
     out_dir = data_path+"-short"
@@ -311,6 +293,129 @@ def preprocess_short(data_path, reduction_factor=0.08):
     save_path = os.path.join(out_dir,"train_pairs.pt")
     dataset.save(save_path)
 
+def index_corpus(out_dir):
+    index_dir = os.path.join(out_dir, "bm25index")
+    os.makedirs(index_dir, exist_ok=True)
+    corpus_filepah = os.path.join(index_dir, "corpus.jsonl")
+
+    if len(os.listdir(index_dir)) <= 1 :
+        log_message("Writing corpus to disk")
+        with open(corpus_filepah, "w") as corpus_out, \
+            gzip.open(os.path.join(out_dir, "msmarco-docs.tsv.gz"), 'rt', encoding='utf8') as corpus_in:
+            print("Reading corpus all at once. This will take about two minutes.")
+            corpus_in_content = corpus_in.readlines()
+            
+            skipped_docs = ["D2070532", "D705499", "D3246147", "D3414215", "D3336081", "D3259427"] # Known problematic documentss
+            for doc_line in tqdm(corpus_in_content):
+                doc = doc_line.rstrip().split("\t")
+                if len(doc) == 4:
+                    json.dump({"id": doc[0], "title": doc[2], "contents": doc[3]}, corpus_out)
+                    corpus_out.write("\n")
+                else:
+                    skipped_docs.append(doc[0])
+
+        log_message("Executing Pyserini indexing command. Note: Errors might appear, but indexing should run properly regardless.")
+        cmd = [
+            "python", "-m", "pyserini.index",
+            "-collection", "JsonCollection",
+            "-input", index_dir,
+            "-index", index_dir,
+            "-generator", "DefaultLuceneDocumentGenerator",
+            "-threads", "4",
+            "-storePositions", "-storeDocvectors", "-storeRaw"
+        ]
+        
+        process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+
+        # Print each line as it's received
+        for line in process.stdout:
+            print(line, end='')  # `end=''` avoids double newlines
+
+        # Wait for process to finish
+        process.wait()
+    else:
+        log_message("Corpus already indexed.")
+
+    searcher = LuceneSearcher(index_dir)
+
+    return searcher
+    
+def preprocess_nqrels(out_dir):
+    searcher = index_corpus(out_dir)
+    nqrel_dir = os.path.join(out_dir, "nqrels")
+    os.makedirs(nqrel_dir, exist_ok=True)
+    corpus, queries, qrels = GenericDataLoader(data_folder=out_dir).load(split="train")
+    
+
+    with open(os.path.join(nqrel_dir, "train.tsv"), "w", encoding="utf-8", newline="") as f:
+        writer = csv.writer(f, delimiter="\t")  # Use tab as delimiter
+        
+        # Write header
+        writer.writerow(["query-id", "corpus-id", "score"])
+
+        for qid in tqdm(qrels.keys()):
+            # Add query
+            query=queries[qid]
+            subbed_query = re.sub(r'[^\w\s]',' ',query)
+            
+            # Add positive document
+            pos_docid = list(qrels[qid].keys())[0]
+
+            # Get the negative documents using BM25
+            # NOTE: There is only one negative document. If you want more, uncomment the code below. 
+            negatives = searcher.search(subbed_query, k=2)
+            if len(negatives) == 0:
+                log_message(f"No negative documents found for query {qid}.")
+
+            negative_pid = negatives[0].docid if negatives[0].docid != pos_docid else negatives[1].docid
+            # pos_doc = corpus[pos_docid]
+            # neg_doc = corpus[negative_pid]
+            
+            writer.writerow([qid, negative_pid, -1])
+
+            
+def preprocess_bm25(out_dir, k=2):
+    searcher = index_corpus(out_dir)
+    corpus, queries, qrels = GenericDataLoader(data_folder=out_dir).load(split="train")
+    
+    triplet_queries = []
+    triple_pos_docs = []
+    triple_neg_docs = []
+    for qid in tqdm(qrels.keys()):
+        # Add query
+        query = queries[qid]
+        triplet_queries.append(query)
+        
+        # Add positive document
+        pos_docid = list(qrels[qid].keys())[0]
+        pos_doc = corpus[pos_docid]
+        triple_pos_docs.append(pos_doc)
+
+        # Get the negative documents using BM25
+        # NOTE: There is only one negative document. If you want more, uncomment the code below. 
+        negatives = searcher.search(query, k=k)
+        # neg_docs = []
+        # for i in range(len(negatives)):
+        #     if (negatives[i].docid != pos_docid) & (len(neg_docs)<k-1):
+        #         neg_docs.append(corpus[negatives[i].docid])
+        # triple_neg_docs.append(neg_docs)
+        if len(negatives) > 0:
+            negative_pid = negatives[0].docid if negatives[0].docid != pos_docid else negatives[1].docid
+            negative_doc = corpus[negative_pid]
+        triple_neg_docs.append(negative_doc)
+
+    triplets = {
+        "queries":triplet_queries,
+        "positives":triple_pos_docs,
+        "negatives":triple_neg_docs
+    }
+
+    dataset = TripletDataset(triplets)    
+    save_path = os.path.join(out_dir,"train_triplets.pt")
+    dataset.save(save_path)
+    log_message("File saved.")
+
+
 
 if __name__ == "__main__":
     
@@ -319,18 +424,29 @@ if __name__ == "__main__":
 
     if not os.path.exists(out_dir):
         os.makedirs(out_dir)
+    
+    qrel_dir = os.path.join(out_dir, "qrels")
+    os.makedirs(qrel_dir, exist_ok=True)
+
+    index_dir = os.path.join(out_dir, "bm25index")
+    os.makedirs(index_dir, exist_ok=True)
 
     download_msmarco(out_dir)
 
     if args.overwrite or not os.path.exists(out_dir+"/corpus.jsonl"):
         preprocess_corpus(out_dir)
     if args.overwrite or not os.path.exists(out_dir+"/queries.jsonl"):
+        preprocess_queries(out_dir)
+    if args.overwrite or not os.path.exists(qrel_dir+"/test.tsv"):
         preprocess_dev(out_dir)
-    if args.overwrite or not os.path.exists(out_dir+"/train_queries.jsonl"):
+    if args.overwrite or not os.path.exists(qrel_dir+"/train.tsv"):
         preprocess_train(out_dir)
     if args.overwrite or not os.path.exists(out_dir+"/train_pairs.pt"):
         preprocess_train_pairs(out_dir)
     if args.overwrite or not os.path.exists(out_dir+"-short"):
         preprocess_short(out_dir)
-
-    
+    if args.overwrite or not os.path.exists(index_dir+"/corpus.jsonl") or not os.path.exists(out_dir+"/train_triplets.pt"):
+        preprocess_bm25(out_dir)
+    if args.overwrite or not os.path.exists(index_dir+"/corpus.jsonl") or not os.path.exists(out_dir+"/nqrels/train.tsv"):
+        preprocess_nqrels(out_dir)
+        

@@ -13,10 +13,12 @@ from torch.optim import AdamW
 from accelerate import Accelerator, DistributedDataParallelKwargs
 from transformers import get_scheduler
 
-from preprocessing.preprocess_utils import get_pairs_dataloader
+from preprocessing.preprocess_utils import get_pairs_dataloader, get_triplets_dataloader
 from model_biencoder import LongBiEncoder
 from modeling_utils import *
 from losses import *
+
+import datetime
 
 import dotenv
 dotenv.load_dotenv()
@@ -35,7 +37,7 @@ def debug_accelerate(train_dataloader, biencoder):
 
 def parse_arguments():
     argparser = argparse.ArgumentParser("BenchmarkIR Script")
-    argparser.add_argument('--config', default="longtriever_passage") 
+    argparser.add_argument('--config', default="longtriever_debug") 
     argparser.add_argument('--config_dict', default={})
     
     args = argparser.parse_args()
@@ -68,20 +70,17 @@ def train_longtriever(arg_dict):
     batch_size = settings["batch_size"]
     task = settings["task"]
     exp_name = settings["exp_name"]
-    enable_accelerate = settings["accelerate"]
     enable_logging = settings["logging"]
-    checkpoint_steps = settings["checkpoint_steps"] if "checkpoint_steps" in settings else 10000
+    checkpoint_steps = settings["checkpoint_steps"]
     resume_from_checkpoint = "checkpoint" in config_dict
+    gradient_accumulation_steps = settings["gradient_accumulation_steps"]
+    logging_steps = settings["logging_steps"] 
 
     log_note_path = os.path.join(save_path, "slurm_ids.txt")
     with open(log_note_path, "a") as log_file:
         slurm_id = os.environ["SLURM_JOB_ID"] if "SLURM_JOB_ID" in os.environ else "local"
         log_file.write(f"Training Job Slurm ID: {slurm_id}; Computer: {os.uname()[1]}\n")
 
-
-    log_message(f"========================= Finetuning run {exp_name}.=========================")
-
-    
     def seed_everything(seed=42):
         torch.manual_seed(seed)
         torch.cuda.manual_seed(seed)
@@ -90,27 +89,38 @@ def train_longtriever(arg_dict):
         random.seed(seed)
         os.environ["PYTHONHASHSEED"] = str(seed)
 
-    # TODO: add functionality to :
-    #       - randomize seed
-    #       - save & load seed when checkpointing
-    seed = 42
+    seed = settings["seed"]
     seed_everything(seed)
 
-    logging_steps = 10 
-    accelerator = Accelerator(kwargs_handlers=[DistributedDataParallelKwargs(find_unused_parameters=True)])
+    accelerator = Accelerator(gradient_accumulation_steps=gradient_accumulation_steps, kwargs_handlers=[DistributedDataParallelKwargs(find_unused_parameters=True)])
 
-    task_datapath = os.path.join(STORAGE_DIR, os.path.join("datasets", task))
-    dataset_path = os.path.join(task_datapath, "train_pairs.pt")
+    log_message(f"========================= Finetuning run {exp_name}.=========================")
 
     # Read the config
     log_message("Initializing training. ")
-    dataloader = get_pairs_dataloader(
-        batch_size=batch_size, 
-        dataset_path=dataset_path, 
-        pin_memory=True, 
-        prefetch_factor=2, 
-        num_workers = 4
-    )
+    
+    task_datapath = os.path.join(STORAGE_DIR, os.path.join("datasets", task))
+    if use_negatives:
+        dataset_path = os.path.join(task_datapath, "train_triplets.pt")
+        dataloader = get_triplets_dataloader(
+            batch_size=batch_size, 
+            dataset_path=dataset_path, 
+            pin_memory=True, 
+            prefetch_factor=2, 
+            num_workers = 4
+        )
+         # TODO: add to config dict
+        # loss_fct = contrastive_loss
+    else: 
+        dataset_path = os.path.join(task_datapath, "train_pairs.pt")
+        dataloader = get_pairs_dataloader(
+            batch_size=batch_size, 
+            dataset_path=dataset_path, 
+            pin_memory=True, 
+            prefetch_factor=2, 
+            num_workers = 4
+        )
+    loss_fct = LOSS_FUNCTIONS[settings["loss_fn"]]
 
     biencoder = LongBiEncoder(
         model_path=(q_model_path, doc_model_path) if not shared_encoder else model_path,
@@ -129,7 +139,11 @@ def train_longtriever(arg_dict):
         optim = AdamW([
             {"params": biencoder.q_model.parameters(), 'lr': settings["lr"]},
             {"params": biencoder.doc_model.parameters(), 'lr': settings["lr"]} 
-        ]) 
+            ], 
+        betas=(settings["adam_beta1"], settings["adam_beta2"]), 
+        eps = settings["adam_epsilon"], 
+        weight_decay=settings["weight_decay"]
+        ) 
     else:
         optim = AdamW([
             {"params": biencoder.q_model.parameters(), 'lr': settings["lr"]},
@@ -137,12 +151,12 @@ def train_longtriever(arg_dict):
 
     # Number of training epochs and warmup steps
     epochs = settings["epochs"]
-    num_training_steps = epochs * len(dataloader)
-    num_warmup_steps = int(0.1 * num_training_steps)
+    num_training_steps = (epochs * len(dataloader)) / gradient_accumulation_steps
+    num_warmup_steps = int(settings["warmup_ratio"] * num_training_steps)
 
     # Initialize the scheduler
     scheduler = get_scheduler(
-        "linear", 
+        settings["lr_scheduler_type"], 
         optimizer=optim, 
         num_warmup_steps=num_warmup_steps, 
         num_training_steps=num_training_steps
@@ -159,9 +173,7 @@ def train_longtriever(arg_dict):
    
 
     optim, dataloader, scheduler = biencoder.accelerate_model(optim, dataloader, scheduler, accelerator)
-    # TODO: add to config dict
-    # loss_fct = contrastive_loss
-    loss_fct = InBatchNegativeLoss()
+
 
     resume_step = None
     if resume_from_checkpoint:
@@ -183,47 +195,66 @@ def train_longtriever(arg_dict):
             active_dataloader = dataloader
         loop = tqdm(active_dataloader, desc=f'Epoch {epoch} ({accelerator.process_index})')
         for i, batch in enumerate(loop):
-            overall_step+=1
+            with accelerator.accumulate([biencoder.q_model, biencoder.doc_model]):
+                # big_tic = time.time()
+                overall_step+=1
 
-            # Step init
-            optim.zero_grad()
+                # Step init
+                optim.zero_grad()
 
-            # Input
-            queries = batch["queries"]
-            documents = batch["documents"]
-
-            # Encoding
-            q_embeddings = biencoder.encode_queries(queries, convert_to_tensor=True) 
-            doc_embeddings = biencoder.encode_corpus(documents, convert_to_tensor=True) 
-
-            # Backwards pass
-            loss = loss_fct(q_embeddings, doc_embeddings)
-            accelerator.backward(loss)
-
-            scan_gradient_norm(biencoder, overall_step, batch, save_path)
-
-            if gradient_clipping:
-                accelerator.clip_grad_norm_(biencoder.q_model.parameters(), max_norm=q_gradient_clipping)
-                accelerator.clip_grad_norm_(biencoder.doc_model.parameters(), max_norm=doc_gradient_clipping)
+                # Input
+                queries = batch["queries"]
+                documents = batch["documents"]
 
 
-            # Updates
-            optim.step()
-            scheduler.step()
-            
-            # Logging info
-            if (overall_step % logging_steps==0) & enable_logging & accelerator.is_main_process:
-                unwrapped_q_model = accelerator.unwrap_model(biencoder.q_model)
-                unwrapped_doc_model = accelerator.unwrap_model(biencoder.doc_model)
-                log_metrics(unwrapped_q_model, unwrapped_doc_model, scheduler, optim, experiment, loss, overall_step)
+                # Encoding
+                # tic = time.time()
+                q_embeddings = biencoder.encode_queries(queries, convert_to_tensor=True) 
+                # toc = time.time()
+                # log_message(f"Encoding batch queries: {toc-tic:.5f}s")
+                # tic = time.time()
+                doc_embeddings = biencoder.encode_corpus(documents, convert_to_tensor=True) 
+                # toc = time.time()
+                # log_message(f"Encoding batch corpus: {toc-tic:.5f}s")
 
-            # Saving checkpoint
-            if overall_step%checkpoint_steps==0:
-                biencoder.save_checkpoint(save_path, accelerator)
-                accelerator.wait_for_everyone()
+                # Backwards pass
+                # tic = time.time()
+                loss = loss_fct(q_embeddings, doc_embeddings)
+                # toc = time.time()
+                # log_message(f"Loss function: {toc-tic:.5f}s")
+                # tic = time.time()
+                accelerator.backward(loss)
+                # toc = time.time()
+                # log_message(f"Backwards pass: {toc-tic:.5f}s")
 
-            # TQDM stuff
-            loop.set_postfix(loss = loss.item())
+                # scan_gradient_norm(biencoder, overall_step, batch, save_path)
+
+                if gradient_clipping:
+                    accelerator.clip_grad_norm_(biencoder.q_model.parameters(), max_norm=q_gradient_clipping)
+                    accelerator.clip_grad_norm_(biencoder.doc_model.parameters(), max_norm=doc_gradient_clipping)
+
+
+                # Updates
+                optim.step()
+                scheduler.step()
+                
+                # Logging info
+                if (overall_step % logging_steps==0) & enable_logging & accelerator.is_main_process:
+                    unwrapped_q_model = accelerator.unwrap_model(biencoder.q_model)
+                    unwrapped_doc_model = accelerator.unwrap_model(biencoder.doc_model)
+                    log_metrics(unwrapped_q_model, unwrapped_doc_model, scheduler, optim, experiment, loss, overall_step)
+
+                # Saving checkpoint
+                if overall_step%checkpoint_steps==0:
+                    biencoder.save_checkpoint(save_path, accelerator)
+                    accelerator.wait_for_everyone()
+
+                # TQDM stuff
+                now = datetime.datetime.now().strftime("%H:%M:%S")
+                loop.set_postfix(loss = loss.item(), time=now, refresh=False)
+
+                # big_toc = time.time()
+                # log_message(f"===========================================================================\nStep {overall_step}: {big_toc-big_tic:.5f}s")
 
         # Free up memory 
         gc.collect()
@@ -259,12 +290,6 @@ if __name__ == "__main__":
         config_path = os.path.join("/u/poellhul/Documents/Masters/benchmarkIR-slurm/src/retrieval/configs", args.config+".json")
         with open(config_path) as fp: arg_dict = json.load(fp)
 
-    
-    for key in arg_dict["settings"]:
-        if type(arg_dict["settings"][key]) == str:
-            arg_dict["settings"][key] = arg_dict["settings"][key].replace("STORAGE_DIR", STORAGE_DIR)
-    for key in arg_dict["config"]:
-        if type(arg_dict["config"][key]) == str:
-            arg_dict["config"][key] = arg_dict["config"][key].replace("STORAGE_DIR", STORAGE_DIR)
-    
+    arg_dict = default_args(arg_dict)
+
     train_longtriever(arg_dict)

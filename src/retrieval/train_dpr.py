@@ -18,6 +18,7 @@ from beir.retrieval.models import SentenceBERT
 
 from preprocessing.preprocess_utils import get_pairs_dataloader, get_triplets_dataloader
 from model_biencoder import BiEncoder
+from model_shared_biencoder import SharedBiEncoder
 from modeling_utils import *
 from losses import *
 
@@ -38,7 +39,7 @@ def debug_accelerate(train_dataloader, biencoder):
 
 def parse_arguments():
     argparser = argparse.ArgumentParser("BenchmarkIR Script")
-    argparser.add_argument('--config', default="default") 
+    argparser.add_argument('--config', default="ms_biencoder") 
     argparser.add_argument('--config_dict', default={})
     
     args = argparser.parse_args()
@@ -81,6 +82,8 @@ def train_dpr(arg_dict):
 
     max_length = config_dict["max_length"] if "max_length" in config_dict else None
 
+    gradient_accumulation_steps = settings["gradient_accumulation_steps"] if "gradient_accumulation_steps" in settings else 1
+
     log_note_path = os.path.join(save_path, "slurm_ids.txt")
     with open(log_note_path, "a") as log_file:
         slurm_id = os.environ["SLURM_JOB_ID"] if "SLURM_JOB_ID" in os.environ else "local"
@@ -101,7 +104,7 @@ def train_dpr(arg_dict):
     seed_everything(seed)
     
     logging_steps = 10 
-    accelerator = Accelerator(kwargs_handlers=[DistributedDataParallelKwargs(find_unused_parameters=True)])
+    accelerator = Accelerator(gradient_accumulation_steps=gradient_accumulation_steps, kwargs_handlers=[DistributedDataParallelKwargs(find_unused_parameters=True)])
 
     task_datapath = os.path.join(STORAGE_DIR, os.path.join("datasets", task))
     if use_negatives:
@@ -180,52 +183,53 @@ def train_dpr(arg_dict):
         else:
             # After the first iteration though, we need to go back to the original dataloader
             active_dataloader = dataloader
+
         loop = tqdm(active_dataloader, desc=f'Epoch {epoch} ({accelerator.process_index})')
-
         for i, batch in enumerate(loop):
-            optim.zero_grad()
-            overall_step+=1
+            with accelerator.accumulate([biencoder.q_model, biencoder.doc_model]):
+                overall_step+=1
 
-            # Regular pairs code
-            queries = batch["queries"]
-            if use_negatives:
-                positives = batch["positives"]
-                negatives = batch["negatives"]
-                documents = positives + negatives
-            else: 
-                documents = batch["documents"]
+                # Regular pairs code
+                queries = batch["queries"]
+                if use_negatives:
+                    positives = batch["positives"]
+                    negatives = batch["negatives"]
+                    documents = positives + negatives
+                else: 
+                    documents = batch["documents"]
 
-            q_embeddings = biencoder.encode_queries(queries, convert_to_tensor=True) 
-            doc_embeddings = biencoder.encode_corpus(documents, convert_to_tensor=True) 
-
-
-            loss = loss_fct(q_embeddings, doc_embeddings)
-            #loss.backward()
-            accelerator.backward(loss)
-
-            scan_gradient_norm(biencoder, overall_step, batch, save_path)
-            
-            if gradient_clipping:
-                accelerator.clip_grad_norm_(biencoder.q_model.parameters(), max_norm=q_gradient_clipping)
-                accelerator.clip_grad_norm_(biencoder.doc_model.parameters(), max_norm=doc_gradient_clipping)
+                q_embeddings = biencoder.encode_queries(queries, convert_to_tensor=True) 
+                doc_embeddings = biencoder.encode_corpus(documents, convert_to_tensor=True) 
 
 
-            optim.step()
-            scheduler.step()
-            
-            # Logging info
-            if (overall_step % logging_steps==0) & enable_logging & accelerator.is_main_process:
-                unwrapped_q_model = accelerator.unwrap_model(biencoder.q_model)
-                unwrapped_doc_model = accelerator.unwrap_model(biencoder.doc_model)
-                log_metrics(unwrapped_q_model, unwrapped_doc_model, scheduler, optim, experiment, loss, overall_step)
-            
-            # Saving checkpoint
-            if overall_step%checkpoint_steps==0:
-                biencoder.save_checkpoint(save_path, accelerator)
-                accelerator.wait_for_everyone()
+                loss = loss_fct(q_embeddings, doc_embeddings)
+                #loss.backward()
+                accelerator.backward(loss)
 
-            loop.set_description(f'Epoch: {epoch}')
-            loop.set_postfix(loss = loss.item())
+                # scan_gradient_norm(biencoder, overall_step, batch, save_path)
+                
+                if gradient_clipping:
+                    accelerator.clip_grad_norm_(biencoder.q_model.parameters(), max_norm=q_gradient_clipping)
+                    accelerator.clip_grad_norm_(biencoder.doc_model.parameters(), max_norm=doc_gradient_clipping)
+
+
+                optim.step()
+                scheduler.step()
+                optim.zero_grad()
+                
+                # Logging info
+                if (overall_step % logging_steps==0) & enable_logging & accelerator.is_main_process:
+                    unwrapped_q_model = accelerator.unwrap_model(biencoder.q_model)
+                    unwrapped_doc_model = accelerator.unwrap_model(biencoder.doc_model)
+                    log_metrics(unwrapped_q_model, unwrapped_doc_model, scheduler, optim, experiment, loss, overall_step)
+                
+                # Saving checkpoint
+                if overall_step%checkpoint_steps==0:
+                    biencoder.save_checkpoint(save_path, accelerator)
+                    accelerator.wait_for_everyone()
+
+                loop.set_description(f'Epoch: {epoch}')
+                loop.set_postfix(loss = loss.item())
 
         gc.collect()
         torch.cuda.empty_cache()

@@ -1,3 +1,4 @@
+from modeling_utils import *
 import os
 import json
 from dataclasses import dataclass
@@ -7,7 +8,14 @@ from datasets import load_dataset,concatenate_datasets,load_from_disk
 from utils import tensorize_batch
 import nltk
 
+import dotenv
+dotenv.load_dotenv()
+
 nltk.download('punkt')
+
+if JOBID == None: JOBID = "debug"
+logger = logging.getLogger(__name__)
+
 
 class DatasetForPretraining(torch.utils.data.Dataset):
     def __init__(self, args):
@@ -187,6 +195,10 @@ class DatasetForFineTuning(torch.utils.data.Dataset):
         self.id2query=load_jsonl(args.query_file)
         self.id2corpus=load_jsonl(args.corpus_file)
         self.dataset=open(args.qrels_file,encoding="utf-8").readlines()[1:]
+        original_dataset_len=len(self.dataset)
+        if args.min_corpus_len>=0:
+            self.dataset=[line for line in self.dataset if len(self.id2corpus[line.split('\t')[1]].get("text"," ").split(" "))+len(self.id2corpus[line.split('\t')[1]].get("title"," ").split(" "))>=args.min_corpus_len]
+            log_message(f"Filtered corpus with min length {args.min_corpus_len}, {len(self.dataset)} samples left, {original_dataset_len} originally")
 
     def __getitem__(self, item):
         query_id, corpus_id, score=self.dataset[item].split('\t')
@@ -202,6 +214,38 @@ class DatasetForFineTuning(torch.utils.data.Dataset):
     def __len__(self):
         return len(self.dataset)
 
+
+class DatasetForFineTuningNegatives(DatasetForFineTuning):
+    def __init__(self, args):
+        super().__init__(args)
+        self.positives=open(args.qrels_file,encoding="utf-8").readlines()[1:]
+        self.negatives=open(args.nqrels_file,encoding="utf-8").readlines()[1:]
+
+        if args.min_corpus_len>=0:
+            log_message(f"Cannot filter corpus with negatives.", logging.ERROR)
+            
+    def __getitem__(self, item):
+        query_id, positive_id, score=self.positives[item].split('\t')
+        _query_id, negative_id, score=self.negatives[item].split('\t')
+        assert query_id==_query_id
+        
+        if (positive_id in self.id2corpus) and (negative_id in self.id2corpus):
+            query_str=self.id2query[query_id].get("text","")
+
+            positive_title_str=self.id2corpus[positive_id].get("title","")
+            positive_text_str=self.id2corpus[positive_id].get("text","")
+            positive_str=positive_title_str+' '+positive_text_str if len(positive_title_str)>0 else positive_text_str
+
+            negative_title_str=self.id2corpus[negative_id].get("title","")
+            negative_text_str=self.id2corpus[negative_id].get("text","")
+            negative_str=negative_title_str+' '+negative_text_str if len(negative_title_str)>0 else negative_text_str
+
+            return [query_str,positive_str,negative_str]
+        else:
+            return ["", ""]
+
+    def __len__(self):
+        return len(self.positives)
 
 @dataclass
 class DataCollatorForFineTuningLongtriever:
@@ -250,6 +294,7 @@ class DataCollatorForFineTuningLongtriever:
         }
 
     def __call__(self, examples):
+        # tic = time.time()
         query_input_ids_batch = []
         query_attention_mask_batch = []
         corpus_input_ids_batch = []
@@ -277,7 +322,207 @@ class DataCollatorForFineTuningLongtriever:
             "corpus_input_ids": corpus_input_ids_batch, #[B,N,L]
             "corpus_attention_mask": corpus_attention_mask_batch, #[B,N,L]
         }
+        
+        # toc = time.time()
+        # log_message(f"Data collation {toc-tic:.5f}s")
 
+        return batch
+    
+    
+@dataclass
+class DataCollatorForFineTuningHierarchicalLongtriever:
+    tokenizer:PreTrainedTokenizerBase
+    max_query_length:int
+    max_corpus_length:int
+    max_corpus_sent_num:int
+    align_right:bool=False
+    negatives:bool=False
+    def __post_init__(self):
+        if isinstance(self.tokenizer,str):
+            self.tokenizer=AutoTokenizer.from_pretrained(self.tokenizer)
+        elif isinstance(self.tokenizer,PreTrainedTokenizerBase):
+            pass
+        else:
+            raise TypeError
+        
+    #     # Separator stuff
+    #     separator_strategies = {
+    #         "default": self.default_strat,
+    #         "blocked": self.blocked_strat
+    #         }
+    #     self.add_special_tokens = separator_strategies[self.separator_strategy]
+        
+    #     self.cls_token_id = self.tokenizer.cls_token_id
+    #     self.sep_token_id = self.tokenizer.sep_token_id
+    #     if self.separator_strategy=="blocked":
+    #         self.num_special_tokens = 4
+    #     elif self.separator_strategy=="default":
+    #         self.num_special_tokens = 2
+
+    # def default_strat(self, curr_block, block_len):
+    #     return torch.tensor(self.tokenizer.build_inputs_with_special_tokens(curr_block[:block_len]))
+
+    # def blocked_strat(self, curr_block, block_len):
+    #     return torch.tensor([self.cls_token_id, self.sep_token_id] + curr_block[:block_len] + [self.sep_token_id, self.sep_token_id])
+    
+    def tokenize(self,string):
+        sentences = nltk.sent_tokenize(string)
+        if not sentences:
+            sentences = ["."]
+        results = self.tokenizer(sentences, add_special_tokens=False, truncation=False, return_attention_mask=False,
+                                 return_token_type_ids=False, verbose=False)
+
+        # -1 is for the current block: out of 8 blocks, 7 are appended
+        block_len = self.max_corpus_length - 4 - (self.max_corpus_sent_num - 1)
+        cls_token_id = self.tokenizer.cls_token_id
+        sep_token_id = self.tokenizer.sep_token_id
+        
+        input_ids_blocks = []
+        attention_mask_blocks = []
+        curr_block = []
+
+        for input_ids_sent in results['input_ids']:
+
+            if len(curr_block) + len(input_ids_sent) >= block_len and curr_block:
+                block_input_ids = torch.tensor([cls_token_id, sep_token_id] + curr_block[:block_len] + [sep_token_id])
+                input_ids_blocks.append(block_input_ids)
+                attention_mask_blocks.append(torch.tensor([1] * len(block_input_ids))) # To account for the extra sep token I'll add at the end
+                
+                curr_block = []
+                if len(input_ids_blocks) >= self.max_corpus_sent_num:
+                    break
+            curr_block.extend(input_ids_sent)
+
+        if len(curr_block) > 0:
+            block_input_ids = torch.tensor([cls_token_id, sep_token_id] + curr_block[:block_len] + [sep_token_id])
+            input_ids_blocks.append(block_input_ids)
+            attention_mask_blocks.append(torch.tensor([1] * len(block_input_ids)))
+        
+        input_ids_blocks = tensorize_batch(input_ids_blocks, self.tokenizer.pad_token_id, align_right=self.align_right)
+        attention_mask_blocks = tensorize_batch(attention_mask_blocks, 0, align_right=self.align_right)
+
+        return {
+            "input_ids_blocks": input_ids_blocks,
+            "attention_mask_blocks": attention_mask_blocks,
+        }
+
+    def __call__(self, examples):
+        # tic = time.time()
+        query_input_ids_batch = []
+        query_attention_mask_batch = []
+        corpus_input_ids_batch = []
+        corpus_attention_mask_batch = []
+        
+        if self.negatives:
+            negative_input_ids_batch = []
+            negative_attention_mask_batch = []
+        
+        sep_token_id = self.tokenizer.sep_token_id
+
+
+        for e in examples:
+            if self.negatives:
+                query_str, corpus_str, negative_str=e
+
+                negative_results=self.tokenize(negative_str)
+                negative_input_ids_batch.append(negative_results['input_ids_blocks'])
+                negative_attention_mask_batch.append(negative_results['attention_mask_blocks'])
+
+            else:
+                query_str, corpus_str=e
+
+            query_results=self.tokenize(query_str)
+            query_input_ids_batch.append(query_results['input_ids_blocks'])
+            query_attention_mask_batch.append(query_results['attention_mask_blocks'])
+
+            corpus_resutls=self.tokenize(corpus_str)
+            corpus_input_ids_batch.append(corpus_resutls['input_ids_blocks'])
+            corpus_attention_mask_batch.append(corpus_resutls['attention_mask_blocks'])
+
+        query_input_ids_batch = tensorize_batch(query_input_ids_batch, self.tokenizer.pad_token_id, align_right=self.align_right)  # [B,N,L]
+        query_final_sep_token = torch.tensor([sep_token_id]).repeat(query_input_ids_batch.shape[0], query_input_ids_batch.shape[1], 1)
+        query_input_ids_batch = torch.cat([query_input_ids_batch, query_final_sep_token], dim=2) # Add the last sep token
+        
+        query_attention_mask_batch = tensorize_batch(query_attention_mask_batch, 0, align_right=self.align_right)  # [B,N,L]
+        query_final_sep_token_mask= torch.tensor([1]).repeat(query_attention_mask_batch.shape[0], query_attention_mask_batch.shape[1], 1)
+        query_attention_mask_batch = torch.cat([query_attention_mask_batch, query_final_sep_token_mask], dim=2) # Add the last sep token
+        
+
+        corpus_input_ids_batch=tensorize_batch(corpus_input_ids_batch,self.tokenizer.pad_token_id, align_right=self.align_right) #[B,N,L]
+        corpus_final_sep_token = torch.tensor([sep_token_id]).repeat(corpus_input_ids_batch.shape[0], corpus_input_ids_batch.shape[1], 1)
+        corpus_input_ids_batch = torch.cat([corpus_input_ids_batch, corpus_final_sep_token], dim=2) # Add the last sep token
+        
+        corpus_attention_mask_batch=tensorize_batch(corpus_attention_mask_batch,0, align_right=self.align_right) #[B,N,L]
+        corpus_final_sep_token_mask= torch.tensor([1]).repeat(corpus_attention_mask_batch.shape[0], corpus_attention_mask_batch.shape[1], 1)
+        corpus_attention_mask_batch = torch.cat([corpus_attention_mask_batch, corpus_final_sep_token_mask], dim=2) # Add the last sep token
+
+        if self.negatives:
+            negative_input_ids_batch=tensorize_batch(negative_input_ids_batch,self.tokenizer.pad_token_id, align_right=self.align_right) #[B,N,L]
+            negative_final_sep_token = torch.tensor([sep_token_id]).repeat(negative_input_ids_batch.shape[0], negative_input_ids_batch.shape[1], 1)
+            negative_input_ids_batch = torch.cat([negative_input_ids_batch, negative_final_sep_token], dim=2) # Add the last sep token
+            
+            negative_attention_mask_batch=tensorize_batch(negative_attention_mask_batch,0, align_right=self.align_right) #[B,N,L]
+            negative_final_sep_token_mask= torch.tensor([1]).repeat(negative_attention_mask_batch.shape[0], negative_attention_mask_batch.shape[1], 1)
+            negative_attention_mask_batch = torch.cat([negative_attention_mask_batch, negative_final_sep_token_mask], dim=2) # Add the last sep token
+            
+            batch = {
+                "query_input_ids": query_input_ids_batch, #[B,N,L]
+                "query_attention_mask": query_attention_mask_batch, #[B,N,L]
+                "corpus_input_ids": corpus_input_ids_batch, #[B,N,L]
+                "corpus_attention_mask": corpus_attention_mask_batch, #[B,N,L]
+                "negative_input_ids": negative_input_ids_batch, #[B,N,L]
+                "negative_attention_mask": negative_attention_mask_batch, #[B,N,L]
+            }
+        else:
+            batch = {
+                "query_input_ids": query_input_ids_batch, #[B,N,L]
+                "query_attention_mask": query_attention_mask_batch, #[B,N,L]
+                "corpus_input_ids": corpus_input_ids_batch, #[B,N,L]
+                "corpus_attention_mask": corpus_attention_mask_batch, #[B,N,L]
+            }
+        
+       
+        return batch
+    
+    
+@dataclass
+class DataCollatorForFineTuningBert:
+    tokenizer:PreTrainedTokenizerBase
+    max_query_length:int
+    max_corpus_length:int
+    align_right:bool=False
+    def __post_init__(self):
+        if isinstance(self.tokenizer,str):
+            self.tokenizer=AutoTokenizer.from_pretrained(self.tokenizer)
+        elif isinstance(self.tokenizer,PreTrainedTokenizerBase):
+            pass
+        else:
+            raise TypeError
+
+    def __call__(self, examples):      
+        queries = [e[0] for e in examples]
+        corpus = [e[1] for e in examples]
+        tokenized_queries = self.tokenizer(
+                queries, 
+                padding=True,
+                truncation=True,
+                max_length=self.max_query_length, 
+                return_tensors="pt",
+            )
+        tokenized_corpus = self.tokenizer(
+                corpus, 
+                padding=True,
+                truncation=True,
+                max_length=self.max_corpus_length, 
+                return_tensors="pt",
+            )
+        batch = {
+            "query_input_ids": tokenized_queries["input_ids"], #[B,N,L]
+            "query_attention_mask": tokenized_queries["attention_mask"], #[B,N,L]
+            "corpus_input_ids": tokenized_corpus["input_ids"], #[B,N,L]
+            "corpus_attention_mask": tokenized_corpus["attention_mask"], #[B,N,L]
+        }
+        
         return batch
     
 @dataclass
@@ -344,3 +589,100 @@ class DataCollatorForEvaluatingLongtriever:
         }
 
         return batch
+    
+    
+@dataclass
+class DataCollatorForEvaluatingHierarchicalLongtriever:
+    tokenizer:PreTrainedTokenizerBase
+    max_query_length:int
+    max_corpus_length:int
+    max_corpus_sent_num:int
+    align_right:bool=False
+    def __post_init__(self):
+        if isinstance(self.tokenizer,str):
+            self.tokenizer=AutoTokenizer.from_pretrained(self.tokenizer)
+        elif isinstance(self.tokenizer,PreTrainedTokenizerBase):
+            pass
+        else:
+            raise TypeError
+
+    def tokenize(self,string):
+        sentences = nltk.sent_tokenize(string)
+        if not sentences:
+            sentences = ["."]
+        results = self.tokenizer(sentences, add_special_tokens=False, truncation=False, return_attention_mask=False,
+                                 return_token_type_ids=False, verbose=False)
+
+        block_len = self.max_corpus_length - self.tokenizer.num_special_tokens_to_add(False) - self.max_corpus_sent_num + 1
+        input_ids_blocks = []
+        attention_mask_blocks = []
+        curr_block = []
+        for input_ids_sent in results['input_ids']:
+            if len(curr_block) + len(input_ids_sent) >= block_len and curr_block:
+                input_ids_blocks.append(
+                    torch.tensor(self.tokenizer.build_inputs_with_special_tokens(curr_block[:block_len])))
+                attention_mask_blocks.append(torch.tensor([1] * len(input_ids_blocks[-1])))
+                curr_block = []
+                if len(input_ids_blocks) >= self.max_corpus_sent_num:
+                    break
+            curr_block.extend(input_ids_sent)
+        if len(curr_block) > 0:
+            input_ids_blocks.append(
+                torch.tensor(self.tokenizer.build_inputs_with_special_tokens(curr_block[:block_len])))
+            attention_mask_blocks.append(torch.tensor([1] * len(input_ids_blocks[-1])))
+        input_ids_blocks = tensorize_batch(input_ids_blocks, self.tokenizer.pad_token_id, align_right=self.align_right)
+        attention_mask_blocks = tensorize_batch(attention_mask_blocks, 0, align_right=self.align_right)
+        return {
+            "input_ids_blocks": input_ids_blocks,
+            "attention_mask_blocks": attention_mask_blocks,
+        }
+
+    def __call__(self, examples):
+        input_ids_batch = []
+        attention_mask_batch = []
+        for e in examples:
+            results=self.tokenize(e)
+            input_ids_batch.append(results['input_ids_blocks'])
+            attention_mask_batch.append(results['attention_mask_blocks'])
+
+        input_ids_batch=tensorize_batch(input_ids_batch,self.tokenizer.pad_token_id, align_right=self.align_right) #[B,N,L]
+        attention_mask_batch=tensorize_batch(attention_mask_batch,0, align_right=self.align_right) #[B,N,L]
+
+
+        batch = {
+            "input_ids": input_ids_batch, #[B,N,L]
+            "attention_mask": attention_mask_batch, #[B,N,L]
+        }
+
+        return batch
+    
+    
+@dataclass
+class DataCollatorForEvaluatingBert:
+    tokenizer:PreTrainedTokenizerBase
+    max_query_length:int
+    max_corpus_length:int
+    align_right:bool=False
+    def __post_init__(self):
+        if isinstance(self.tokenizer,str):
+            self.tokenizer=AutoTokenizer.from_pretrained(self.tokenizer)
+        elif isinstance(self.tokenizer,PreTrainedTokenizerBase):
+            pass
+        else:
+            raise TypeError
+
+    def __call__(self, examples):      
+        tokenized_examples = self.tokenizer(
+                examples, 
+                padding=True,
+                truncation=True,
+                max_length=self.max_query_length, 
+                return_tensors="pt",
+            )
+        batch = {
+            "input_ids": tokenized_examples["input_ids"],
+            "attention_mask": tokenized_examples["attention_mask"]
+        }
+        
+        return batch
+    

@@ -8,6 +8,7 @@ lr=1e-5
 
 # Baseline
 exp_name="longformer_test"
+export EXP_NAME=$exp_name
 
 echo Training.
 

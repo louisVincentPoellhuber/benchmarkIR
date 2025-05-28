@@ -7,7 +7,8 @@ batch_size=28
 lr=1e-5
 
 # Baseline
-exp_name="ms_biencoder"
+exp_name="ms_biencoder_sanitycheck-"$HOSTNAME
+export EXP_NAME=$exp_name
 
 echo Training.
 
@@ -49,12 +50,9 @@ export TORCH_NCCL_ASYNC_ERROR_HANDLING=1
 export NCCL_P2P_DISABLE=1
 export NCCL_IB_DISABLE=1
 # --multi_gpu --num_processes 4 --gpu_ids 0,1,2,3 
-accelerate launch --num_processes=1 src/retrieval/train_dpr.py --config_dict "$config"
+# accelerate launch --num_processes=1 src/retrieval/train_dpr.py --config_dict "$config"
 # python src/retrieval/train_dpr.py --config_dict "$config"
 
-# python src/retrieval/evaluate_dpr.py  --config_dict "$config"
-rm -f $model_path'/mprofile.dat'
-mprof run --output $model_path'/mprofile.dat' src/retrieval/evaluate_longtriever.py  --config_dict "$config" 
-mprof plot --output $model_path'/memory.png' $model_path'/mprofile.dat'
+python src/retrieval/evaluate_dpr.py --config_dict "$config" 
 
-rsync -avz --update --progress $model_path /data/rech/poellhul/models/longtriever/
+# rsync -avz --update --progress $model_path /data/rech/poellhul/models/longtriever/
