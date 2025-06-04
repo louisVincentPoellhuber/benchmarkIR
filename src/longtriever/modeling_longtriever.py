@@ -16,12 +16,12 @@ def cls_pooling(model_output, attention_mask=None):
 
 
 class BlockLevelContextawareEncoder(nn.Module):
-    def __init__(self, config, ablation_config):
+    def __init__(self, config, **kwargs):
         super().__init__()
         self.config = config
         self.text_encoding_layer = nn.ModuleList([BertLayer(config) for _ in range(config.num_hidden_layers)])
         self.information_exchanging_layer = nn.ModuleList([BertLayer(config) for _ in range(config.num_hidden_layers)])
-        self.ablation_config = ablation_config
+        self.ablation_config = kwargs.get("ablation_config", {"inter_block_encoder": True, "doc_token": True})
 
     def forward(
         self,
@@ -57,15 +57,22 @@ class BlockLevelContextawareEncoder(nn.Module):
         return (reduce_hidden_states, hidden_states, )
 
 class Longtriever(BertModel):
-    def __init__(self, config, ablation_config):
+    def __init__(self, config, **kwargs):
         super().__init__(config, add_pooling_layer=False)
         self.config = config
-        self.ablation_config = ablation_config
+        self.ablation_config = kwargs.get("ablation_config", {"inter_block_encoder": True, "doc_token": True})
         self.embeddings = BertEmbeddings(config)
-        self.encoder = BlockLevelContextawareEncoder(config, self.ablation_config)
-        self.doc_embeddings = nn.Embedding(1,config.hidden_size).weight #[1,D]
-        self.doc_embeddings.data.uniform_(-1e-20, 1e-20) # Initialize near zero
-        # self.doc_embeddings.data.zero_() # Initialize to zero if needed
+        self.encoder = BlockLevelContextawareEncoder(config, **kwargs)
+        
+        self.doc_token_init = kwargs.get("doc_token_init", "default")
+        if self.doc_token_init == "cls":
+            self.doc_embeddings = None
+        else:
+            self.doc_embeddings = nn.Embedding(1,config.hidden_size).weight #[1,D]
+            if self.doc_token_init == "default":
+                self.doc_embeddings.data.uniform_(-1e-20, 1e-20) # Initialize near zero
+            elif self.doc_token_init == "zero":
+                self.doc_embeddings.data.zero_()
 
         # Initialize weights and apply final processing
         self.post_init()

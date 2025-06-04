@@ -113,10 +113,13 @@ if __name__ == "__main__":
     os.makedirs(pretrained_dir, exist_ok=True)
 
     save_path = os.path.join(pretrained_dir, model_path.split("/")[-1])
-    if data_args.base_model_postfix:
-        postfix = len(os.listdir(save_path)) + 1
-        save_path = save_path + f"-{postfix}"
-        print("base_model_postfix enabled, adding postfix to model name. New save path: ", save_path) 
+    if data_args.base_model_postfix!=None or data_args.base_model_postfix != "false":
+        if data_args.base_model_postfix=="true":
+            postfix = len(os.listdir(pretrained_dir)) + 1
+        else:
+            postfix = data_args.base_model_postfix
+            save_path = save_path + f"-{postfix}"
+            print("base_model_postfix enabled, adding postfix to model name. New save path: ", save_path) 
 
     if not training_args.overwrite_output_dir and os.path.exists(save_path):
         print(f"Model {save_path} already exists, skipping.")
@@ -134,7 +137,8 @@ if __name__ == "__main__":
         # Stick the parameters that match the Longtriever model
         longtriever = model_type.from_pretrained(
                 data_args.base_model, 
-                ablation_config=model_args.ablation_config
+                ablation_config=model_args.ablation_config, 
+                doc_token_init=model_args.doc_token_init
             )
 
         # Initialize both Longtriever encoders with the base model's encoder
@@ -143,6 +147,6 @@ if __name__ == "__main__":
         # Ensure the parameters are OK
         check_weights(base_model, longtriever)
 
-        # Save everything
+        # # Save everything
         longtriever.save_pretrained(save_path)
         tokenizer.save_pretrained(save_path)

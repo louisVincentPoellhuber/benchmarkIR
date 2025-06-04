@@ -106,33 +106,33 @@ echo Training on documents.
 echo Evaluating.
 rm -f $model_path'/mprofile.dat'
 
-mprof run --output $model_path'/mprofile.dat' src/longtriever/evaluate_longtriever.py \
-        --task $task \
-        --corpus_file $STORAGE_DIR/datasets/$task/corpus.jsonl \
-        --qrels_file $STORAGE_DIR/datasets/$task/qrels/test.tsv \
-        --query_file $STORAGE_DIR/datasets/$task/queries.jsonl \
-        --max_query_length 512 \
-        --max_corpus_length 512 \
-        --max_corpus_sent_num 1 \
-        --model_type longtriever\
-        --model_name_or_path $model_path \
-        --output_dir $model_path \
-        --do_train False \
-        --num_train_epochs 1 \
-        --save_strategy epoch \
-        --per_device_train_batch_size 10 \
-        --per_device_eval_batch_size 32 \
-        --dataloader_drop_last True \
-        --fp16 True \
-        --learning_rate 1e-4 \
-        --overwrite_output_dir True \
-        --dataloader_num_workers 12 \
-        --disable_tqdm False \
-        --report_to comet_ml \
-        --run_name $exp_name\
-        --logging_steps 100 \
-        --ablation_config '{"inter_block_encoder": false, "doc_token": true}'
-mprof plot --output $model_path'/memory.png'
+# mprof run --output $model_path'/mprofile.dat' src/longtriever/evaluate_longtriever.py \
+#         --task $task \
+#         --corpus_file $STORAGE_DIR/datasets/$task/corpus.jsonl \
+#         --qrels_file $STORAGE_DIR/datasets/$task/qrels/test.tsv \
+#         --query_file $STORAGE_DIR/datasets/$task/queries.jsonl \
+#         --max_query_length 512 \
+#         --max_corpus_length 512 \
+#         --max_corpus_sent_num 1 \
+#         --model_type longtriever\
+#         --model_name_or_path $model_path \
+#         --output_dir $model_path \
+#         --do_train False \
+#         --num_train_epochs 1 \
+#         --save_strategy epoch \
+#         --per_device_train_batch_size 10 \
+#         --per_device_eval_batch_size 32 \
+#         --dataloader_drop_last True \
+#         --fp16 True \
+#         --learning_rate 1e-4 \
+#         --overwrite_output_dir True \
+#         --dataloader_num_workers 12 \
+#         --disable_tqdm False \
+#         --report_to comet_ml \
+#         --run_name $exp_name\
+#         --logging_steps 100 \
+#         --ablation_config '{"inter_block_encoder": false, "doc_token": true}'
+# mprof plot --output $model_path'/memory.png'
 
 
 exp_name="revabl_short_interblock"

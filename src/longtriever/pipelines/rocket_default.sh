@@ -26,7 +26,7 @@ torchrun --nproc_per_node=4 src/longtriever/run.py \
         --dataloader_drop_last True \
         --fp16 False \
         --learning_rate 1e-4 \
-        --overwrite_output_dir False \
+        --overwrite_output_dir True \
         --dataloader_num_workers 12 \
         --disable_tqdm False \
         --report_to comet_ml \

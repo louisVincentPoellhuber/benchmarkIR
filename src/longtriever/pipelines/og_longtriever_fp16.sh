@@ -31,6 +31,7 @@ torchrun --nproc_per_node=4 src/longtriever/run.py \
         --dataloader_num_workers 12 \
         --disable_tqdm False \
         --report_to comet_ml \
+        --run_name $exp_name\
         --logging_steps 100 
 
 echo Evaluating.

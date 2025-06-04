@@ -21,16 +21,15 @@ class DataTrainingArguments:
     loss_function: Optional[str] = field(default="contrastive")
     min_corpus_len: Optional[int] = field(default=0)
     base_model: Optional[str] = field(default="bert-base-uncased")
-    base_model_postfix: Optional[bool] = field(default=True)
+    base_model_postfix: Optional[str] = field(default="true")
     negatives: Optional[bool] = field(default=False)
-    # separator_strategy: Optional[str] = field(default="default") # default, blocked, block_token
 
 @dataclass
 class ModelArguments:
     model_type: Optional[str] = field(default="longtriever")
     model_name_or_path: Optional[str] = field(default=f"{os.getenv("STORAGE_DIR")}/models/longtriever/pretrained/bert-base-uncased")
     ablation_config: Optional[str]  = field(default_factory=lambda:'{"inter_block_encoder":true, "doc_token":true}')
-
+    doc_token_init: Optional[str] = field(default="default") # default, zero, cls
     
     def __post_init__(self):
         if isinstance(self.ablation_config, str):

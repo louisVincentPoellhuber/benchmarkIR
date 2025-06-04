@@ -137,15 +137,14 @@ def main():
                 new_corpus[docid]=document
         corpus = new_corpus
 
-
-    if os.path.exists(os.path.join(model_path, "default.flat.tsv")):
-        faiss_search.load(model_path, prefix="default")
-        log_message("Already indexed, loading.")
-    else:
+    if training_args.overwrite_output_dir or not os.path.exists(os.path.join(model_path, "default.flat.tsv")):
         log_message("Indexing.")
         faiss_search.index(corpus=corpus, score_function="dot")
         log_message("Saving.")
         faiss_search.save(model_path, prefix="default")
+    else:
+        faiss_search.load(model_path, prefix="default")
+        log_message("Already indexed, loading.")
         
     # retriever = EvaluateRetrieval(faiss_search, score_function="dot")
     retriever = CustomEvaluateRetrieval(faiss_search, score_function="dot")

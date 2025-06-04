@@ -254,6 +254,7 @@ class DataCollatorForFineTuningLongtriever:
     max_corpus_length:int
     max_corpus_sent_num:int
     align_right:bool=False
+    negatives:bool=False
     def __post_init__(self):
         if isinstance(self.tokenizer,str):
             self.tokenizer=AutoTokenizer.from_pretrained(self.tokenizer)
@@ -299,8 +300,21 @@ class DataCollatorForFineTuningLongtriever:
         query_attention_mask_batch = []
         corpus_input_ids_batch = []
         corpus_attention_mask_batch = []
+        
+        if self.negatives:
+            negative_input_ids_batch = []
+            negative_attention_mask_batch = []
+
         for e in examples:
-            query_str, corpus_str=e
+            if self.negatives:
+                query_str, corpus_str, negative_str=e
+
+                negative_results=self.tokenize(negative_str)
+                negative_input_ids_batch.append(negative_results['input_ids_blocks'])
+                negative_attention_mask_batch.append(negative_results['attention_mask_blocks'])
+
+            else:
+                query_str, corpus_str=e
 
             query_results=self.tokenize(query_str)
             query_input_ids_batch.append(query_results['input_ids_blocks'])
@@ -316,16 +330,26 @@ class DataCollatorForFineTuningLongtriever:
         corpus_attention_mask_batch=tensorize_batch(corpus_attention_mask_batch,0, align_right=self.align_right) #[B,N,L]
 
 
-        batch = {
-            "query_input_ids": query_input_ids_batch, #[B,N,L]
-            "query_attention_mask": query_attention_mask_batch, #[B,N,L]
-            "corpus_input_ids": corpus_input_ids_batch, #[B,N,L]
-            "corpus_attention_mask": corpus_attention_mask_batch, #[B,N,L]
-        }
-        
-        # toc = time.time()
-        # log_message(f"Data collation {toc-tic:.5f}s")
+        if self.negatives:
+            negative_input_ids_batch=tensorize_batch(negative_input_ids_batch,self.tokenizer.pad_token_id, align_right=self.align_right) #[B,N,L]
+            negative_attention_mask_batch=tensorize_batch(negative_attention_mask_batch,0, align_right=self.align_right) #[B,N,L]
 
+            batch = {
+                "query_input_ids": query_input_ids_batch, #[B,N,L]
+                "query_attention_mask": query_attention_mask_batch, #[B,N,L]
+                "corpus_input_ids": corpus_input_ids_batch, #[B,N,L]
+                "corpus_attention_mask": corpus_attention_mask_batch, #[B,N,L]
+                "neg_input_ids": negative_input_ids_batch, #[B,N,L]
+                "neg_attention_mask": negative_attention_mask_batch, #[B,N,L]
+            }
+        else:
+            batch = {
+                "query_input_ids": query_input_ids_batch, #[B,N,L]
+                "query_attention_mask": query_attention_mask_batch, #[B,N,L]
+                "corpus_input_ids": corpus_input_ids_batch, #[B,N,L]
+                "corpus_attention_mask": corpus_attention_mask_batch, #[B,N,L]
+            }
+        
         return batch
     
     
@@ -344,27 +368,7 @@ class DataCollatorForFineTuningHierarchicalLongtriever:
             pass
         else:
             raise TypeError
-        
-    #     # Separator stuff
-    #     separator_strategies = {
-    #         "default": self.default_strat,
-    #         "blocked": self.blocked_strat
-    #         }
-    #     self.add_special_tokens = separator_strategies[self.separator_strategy]
-        
-    #     self.cls_token_id = self.tokenizer.cls_token_id
-    #     self.sep_token_id = self.tokenizer.sep_token_id
-    #     if self.separator_strategy=="blocked":
-    #         self.num_special_tokens = 4
-    #     elif self.separator_strategy=="default":
-    #         self.num_special_tokens = 2
-
-    # def default_strat(self, curr_block, block_len):
-    #     return torch.tensor(self.tokenizer.build_inputs_with_special_tokens(curr_block[:block_len]))
-
-    # def blocked_strat(self, curr_block, block_len):
-    #     return torch.tensor([self.cls_token_id, self.sep_token_id] + curr_block[:block_len] + [self.sep_token_id, self.sep_token_id])
-    
+     
     def tokenize(self,string):
         sentences = nltk.sent_tokenize(string)
         if not sentences:
@@ -470,8 +474,8 @@ class DataCollatorForFineTuningHierarchicalLongtriever:
                 "query_attention_mask": query_attention_mask_batch, #[B,N,L]
                 "corpus_input_ids": corpus_input_ids_batch, #[B,N,L]
                 "corpus_attention_mask": corpus_attention_mask_batch, #[B,N,L]
-                "negative_input_ids": negative_input_ids_batch, #[B,N,L]
-                "negative_attention_mask": negative_attention_mask_batch, #[B,N,L]
+                "neg_input_ids": negative_input_ids_batch, #[B,N,L]
+                "neg_attention_mask": negative_attention_mask_batch, #[B,N,L]
             }
         else:
             batch = {

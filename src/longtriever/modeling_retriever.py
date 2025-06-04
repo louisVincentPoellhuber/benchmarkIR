@@ -7,19 +7,32 @@ from beir.retrieval.models.util import extract_corpus_sentences
 from tqdm import trange
 from data_handler import DataCollatorForEvaluatingLongtriever
 
-def compute_contrastive_loss( co_query_embeddings, co_corpus_embeddings):
+def compute_contrastive_loss(co_query_embeddings, co_corpus_embeddings, **kwargs):
+        
     similarities_1 = torch.matmul(co_query_embeddings, co_corpus_embeddings.transpose(0, 1))
     similarities_2 = torch.matmul(co_query_embeddings, co_query_embeddings.transpose(0, 1))
     similarities_2.fill_diagonal_(float('-inf'))
+
+    # If there are negative embeddings, compute their similarities and append them to the queries's similarities
+    co_neg_embeddings = kwargs.get("co_neg_embeddings", None)
+    if co_neg_embeddings is not None:
+        similarities_3 = torch.matmul(co_query_embeddings, co_neg_embeddings.transpose(0, 1))
+        similarities_2 = torch.cat([similarities_2, similarities_3], dim=1)
+
     similarities=torch.cat([similarities_1,similarities_2],dim=1)
     labels=torch.arange(similarities.shape[0],dtype=torch.long,device=similarities.device)
     co_loss = F.cross_entropy(similarities, labels) * dist.get_world_size()
     return co_loss
 
-def compute_cross_entropy_loss(co_query_embeddings, co_corpus_embeddings):
+def compute_cross_entropy_loss(co_query_embeddings, co_corpus_embeddings, **kwargs):
     similarities = torch.matmul(co_query_embeddings, co_corpus_embeddings.transpose(0, 1))
-
     labels=torch.arange(similarities.shape[0],dtype=torch.long,device=similarities.device)
+
+    co_neg_embeddings = kwargs.get("co_neg_embeddings", None)
+    if co_neg_embeddings is not None:
+        similarities_2 = torch.matmul(co_query_embeddings, co_neg_embeddings.transpose(0, 1))
+        similarities = torch.cat([similarities, similarities_2], dim=1)
+
     co_loss = F.cross_entropy(similarities, labels) * dist.get_world_size()
     return co_loss
 
@@ -110,12 +123,21 @@ class BertRetriever(nn.Module):
         self.training = False
 
 class LongtrieverRetriever(BertRetriever):
-    def forward(self, query_input_ids, query_attention_mask, corpus_input_ids, corpus_attention_mask):
+    def forward(self, query_input_ids, query_attention_mask, corpus_input_ids, corpus_attention_mask, **kwargs):
+
         query_embeddings = self.encoder(query_input_ids, query_attention_mask)
         corpus_embeddings = self.encoder(corpus_input_ids, corpus_attention_mask)
         co_query_embeddings = torch.cat(self._gather_tensor(query_embeddings.contiguous()))
         co_corpus_embeddings = torch.cat(self._gather_tensor(corpus_embeddings.contiguous()))
-        co_loss = self.loss_fct(co_query_embeddings, co_corpus_embeddings)
+    
+        neg_input_ids = kwargs.get("neg_input_ids", None)
+        neg_attention_mask = kwargs.get("neg_attention_mask", None)
+        if neg_input_ids is not None:
+            negative_embeddings = self.encoder(neg_input_ids, neg_attention_mask)
+            co_neg_embeddings = torch.cat(self._gather_tensor(negative_embeddings.contiguous()))
+            co_loss = self.loss_fct(co_query_embeddings=co_query_embeddings, co_corpus_embeddings=co_corpus_embeddings, co_neg_embeddings=co_neg_embeddings)
+        else:
+            co_loss = self.loss_fct(co_query_embeddings, co_corpus_embeddings)
         return (co_loss,)
     
     def tokenize(self, sub_input):

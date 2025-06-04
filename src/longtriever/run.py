@@ -37,7 +37,7 @@ def main():
     else:
         model_args, data_args, training_args = parser.parse_args_into_dataclasses()
         
-    log_message(f"========================= Finetuning {data_args.exp_name} =========================")
+    log_message(f"========================= Finetuning {training_args.run_name} =========================")
 
     if (
         os.path.exists(training_args.output_dir)
@@ -73,6 +73,8 @@ def main():
         transformers.utils.logging.enable_explicit_format()
     log_message(f"Training/evaluation parameters {training_args}")
 
+    if (model_args.model_type == "bert") & (data_args.negatives):
+        raise ValueError("BERT model does not yet support negatives. Please set `negatives` to False.")
 
     # Create datacollator & model
     log_message("Loading dataset.")
@@ -81,6 +83,8 @@ def main():
         dataset = DatasetForPretraining(data_args)
     else:
         if data_args.negatives: # Negative dataset if wer're fine-tuning with negatives
+            assert training_args.per_device_train_batch_size % 2 == 0, "Batch size must be even when using negatives."
+            training_args.per_device_train_batch_size = training_args.per_device_train_batch_size // 2
             dataset = DatasetForFineTuningNegatives(data_args)
         else: # Normal dataset for fine-tuning otherwise
             dataset = DatasetForFineTuning(data_args)
@@ -88,10 +92,11 @@ def main():
     if model_args.model_type=="longtriever":
         log_message("Loading dataset for fine-tuning")
         data_collator=DataCollatorForFineTuningLongtriever(
-                tokenizer,
-                data_args.max_query_length,
-                data_args.max_corpus_length,
-                data_args.max_corpus_sent_num
+                tokenizer=tokenizer,
+                max_query_length=data_args.max_query_length,
+                max_corpus_length=data_args.max_corpus_length,
+                max_corpus_sent_num=data_args.max_corpus_sent_num, 
+                negatives=data_args.negatives
             )
     elif model_args.model_type=="hierarchical":
         log_message("Loading dataset for fine-tuning")
@@ -125,7 +130,8 @@ def main():
     if model_args.model_type=="longtriever":
         encoder = Longtriever.from_pretrained(
                 model_args.model_name_or_path, 
-                ablation_config=model_args.ablation_config
+                ablation_config=model_args.ablation_config, 
+                doc_token_init=model_args.doc_token_init
             )
         model = LongtrieverRetriever(
                 model=encoder, 
@@ -135,7 +141,8 @@ def main():
     elif model_args.model_type=="hierarchical":
         encoder = HierarchicalLongtriever.from_pretrained(
                 model_args.model_name_or_path, 
-                ablation_config=model_args.ablation_config
+                ablation_config=model_args.ablation_config, 
+                doc_token_init=model_args.doc_token_init
             )
         model = LongtrieverRetriever(
                 model=encoder, 

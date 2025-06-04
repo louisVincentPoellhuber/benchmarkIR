@@ -366,8 +366,10 @@ def preprocess_nqrels(out_dir):
             negatives = searcher.search(subbed_query, k=2)
             if len(negatives) == 0:
                 log_message(f"No negative documents found for query {qid}.")
-
-            negative_pid = negatives[0].docid if negatives[0].docid != pos_docid else negatives[1].docid
+                negative_pid = previous_negatives[0].docid if previous_negatives[0].docid != pos_docid else previous_negatives[1].docid
+            else:
+                negative_pid = negatives[0].docid if negatives[0].docid != pos_docid else negatives[1].docid
+            previous_negatives = negatives.copy()
             # pos_doc = corpus[pos_docid]
             # neg_doc = corpus[negative_pid]
             

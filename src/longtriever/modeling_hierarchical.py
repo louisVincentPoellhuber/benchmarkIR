@@ -38,14 +38,16 @@ class HierarchicalLongtrieverEmbeddings(BertEmbeddings):
             pre_cls_attention_mask = current_cls_attention_mask.clone().repeat(1, i)
             current_final_sep_attention_mask = current_cls_attention_mask.clone() # If the token is CLS, it'll be 1, if it's PAD, it'll be 0
             post_cls_attention_mask = cls_attention_mask[:, i:-1]
-            hier_block_attention_mask = torch.cat([pre_cls_attention_mask, current_cls_attention_mask, current_block_attention_mask[:, 1:-1], post_cls_attention_mask, current_final_sep_attention_mask], dim=1)
+            hier_block_attention_mask = torch.cat([current_cls_attention_mask, pre_cls_attention_mask, current_block_attention_mask[:, 1:-1], post_cls_attention_mask, current_final_sep_attention_mask], dim=1)
             block_attention_mask.append(hier_block_attention_mask)
 
             # Token Type IDs
             current_token_type_ids = token_type_ids[:, i, :]
+            current_cls_token_type_ids = current_token_type_ids[:, 0:1]
+            current_final_sep_token_type_ids = current_token_type_ids[:, -1:]
             pre_token_type_ids = torch.tensor(1, dtype=current_token_type_ids.dtype, device=current_token_type_ids.device).repeat(current_token_type_ids.shape[0], i)
             post_token_type_ids = torch.tensor(1, dtype=current_token_type_ids.dtype, device=current_token_type_ids.device).repeat(current_token_type_ids.shape[0], token_type_ids.shape[1] - i - 1)
-            hier_token_type_ids = torch.cat([pre_token_type_ids, current_token_type_ids, post_token_type_ids], dim=1)
+            hier_token_type_ids = torch.cat([current_cls_token_type_ids, pre_token_type_ids, current_token_type_ids[:, 1:-1], post_token_type_ids, current_final_sep_token_type_ids], dim=1)
             block_token_type_ids.append(hier_token_type_ids)
 
         block_input_embeds = torch.stack(block_input_embeds, dim=1)
@@ -121,23 +123,23 @@ class BlockLevelHierarchicalContextawareEncoder(nn.Module):
 
     def update_blockwise_cls_tokens(self, cls_hidden_states, hidden_states, B, N, L_, D):
         # pre
-        pre_indices = torch.tril_indices(N, L_)
-        mask = pre_indices[1] != 0
-        filtered_indices = pre_indices[:, mask]
+        pre_indices = torch.tril_indices(N, L_, offset=1)
+        mask = (pre_indices[1] != 0) & (pre_indices[1] != 1) 
+        pre_filtered_indices = pre_indices[:, mask]
 
         extended_cls_tokens = cls_hidden_states.repeat(N, 1, 1, 1).view(B, N, N, D)
         pre_cls_indices = torch.tril_indices(N, N, offset=-1)
 
-        hidden_states[:, filtered_indices[0], filtered_indices[1], :] = extended_cls_tokens[:, pre_cls_indices[0], pre_cls_indices[1], :]
+        hidden_states[:, pre_filtered_indices[0], pre_filtered_indices[1], :] = extended_cls_tokens[:, pre_cls_indices[0], pre_cls_indices[1], :]
 
         # post
-        post_indices = torch.triu_indices(N, L_, offset=L_-N+1)
-        mask = post_indices[1] != hidden_states.shape[1] - 1
-        filtered_indices = post_indices[:, mask]
+        post_indices = torch.triu_indices(N, L_, offset=L_-N+1) 
+        # mask = post_indices[1] != hidden_states.shape[1] - 1
+        # post_filtered_indices = post_indices[:, mask]
 
         post_cls_indices = torch.triu_indices(N, N, offset=1)
 
-        hidden_states[:, filtered_indices[0], filtered_indices[1], :] = extended_cls_tokens[:, post_cls_indices[0], post_cls_indices[1], :]
+        hidden_states[:, post_indices[0], post_indices[1], :] = extended_cls_tokens[:, post_cls_indices[0], post_cls_indices[1], :]
 
         return hidden_states
 
@@ -164,7 +166,7 @@ class BlockLevelHierarchicalContextawareEncoder(nn.Module):
             hidden_states = layer_outputs[0]
 
             hidden_states = hidden_states.view(B, N, L_, D)
-            cls_hidden_states = hidden_states[:, torch.arange(N), torch.arange(N)+1, :].clone() # Diagonal now
+            cls_hidden_states = hidden_states[:, :, 1, :].clone()
 
             if N>1: # Pointless to do for small document and queries
                 hidden_states = self.update_blockwise_cls_tokens(cls_hidden_states, hidden_states, B, N, L_, D)
@@ -182,8 +184,8 @@ class BlockLevelHierarchicalContextawareEncoder(nn.Module):
 class HierarchicalLongtriever(Longtriever):
     config_class = HierarchicalLongtrieverConfig
     base_model_prefix = "hierarchical_longtriever"
-    def __init__(self, config, ablation_config):
-        super().__init__(config, ablation_config)
+    def __init__(self, config, **kwargs):
+        super().__init__(config, **kwargs)
         self.embeddings = HierarchicalLongtrieverEmbeddings(config)
         self.encoder = BlockLevelHierarchicalContextawareEncoder(config)
 
