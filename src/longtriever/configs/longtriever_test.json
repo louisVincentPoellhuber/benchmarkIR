@@ -23,7 +23,7 @@
     "lr": 1e-4, 
     "report_to": "comet_ml",
     "logging_steps": 10,
-    "ablation_config": {"inter_block_encoder":true, "doc_token":true}, 
+    "ablation_config": {"inter_block_encoder":true, "doc_token":true, "separators": false, "segments": false}, 
     "loss_function": "contrastive", 
     "min_corpus_len": 0
 }

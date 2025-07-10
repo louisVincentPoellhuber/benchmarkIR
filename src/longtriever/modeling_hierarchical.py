@@ -13,8 +13,11 @@ class HierarchicalLongtrieverConfig(BertConfig):
         super().__init__(**kwargs)
 
 class HierarchicalLongtrieverEmbeddings(BertEmbeddings):
-    def __init__(self, config):
+    def __init__(self, config, **kwargs):
         super().__init__(config)
+        ablation_config = kwargs.get("ablation_config", {"separators": False, "segments": False})
+        self.add_segments = ablation_config["segments"]
+        self.add_separators = ablation_config["separators"]
 
     def add_blockwise_cls_tokens(self, inputs_embeds, attention_mask, token_type_ids):
         cls_embeds = inputs_embeds[:, :, 0, :]
@@ -186,8 +189,8 @@ class HierarchicalLongtriever(Longtriever):
     base_model_prefix = "hierarchical_longtriever"
     def __init__(self, config, **kwargs):
         super().__init__(config, **kwargs)
-        self.embeddings = HierarchicalLongtrieverEmbeddings(config)
-        self.encoder = BlockLevelHierarchicalContextawareEncoder(config)
+        self.embeddings = HierarchicalLongtrieverEmbeddings(config, **kwargs)
+        self.encoder = BlockLevelHierarchicalContextawareEncoder(config, **kwargs)
 
     def forward(
         self,

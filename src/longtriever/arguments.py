@@ -28,7 +28,7 @@ class DataTrainingArguments:
 class ModelArguments:
     model_type: Optional[str] = field(default="longtriever")
     model_name_or_path: Optional[str] = field(default=f"{os.getenv("STORAGE_DIR")}/models/longtriever/pretrained/bert-base-uncased")
-    ablation_config: Optional[str]  = field(default_factory=lambda:'{"inter_block_encoder":true, "doc_token":true}')
+    ablation_config: Optional[str]  = field(default_factory=lambda:'{"inter_block_encoder":true, "doc_token":true, "separators": false, "segments": false}')
     doc_token_init: Optional[str] = field(default="default") # default, zero, cls
     
     def __post_init__(self):
