@@ -35,11 +35,11 @@ class BlockLevelContextawareEncoder(nn.Module):
         N=N_-1
         for i, layer_module in enumerate(self.text_encoding_layer):
             if (i>0) or (not self.ablation_config["inter_block_encoder"]):
-                layer_outputs = layer_module(hidden_states, attention_mask)
+                layer_outputs = layer_module(hidden_states, attention_mask, output_attentions=self.config.output_attentions)
             else:
                 temp_attention_mask = attention_mask.clone()
                 temp_attention_mask[:,:,:,0] = -10000.0
-                layer_outputs = layer_module(hidden_states, temp_attention_mask)
+                layer_outputs = layer_module(hidden_states, temp_attention_mask, output_attentions=self.config.output_attentions)
                 reduce_hidden_states=reduce_hidden_states[None,:,:].repeat(B,1,1)
 
             hidden_states = layer_outputs[0]

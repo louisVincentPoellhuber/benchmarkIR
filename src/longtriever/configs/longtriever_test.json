@@ -7,7 +7,7 @@
     "corpus_file": "/Tmp/lvpoellhuber/datasets/msmarco-doc/corpus.jsonl",
     "qrels_file": "/Tmp/lvpoellhuber/datasets/msmarco-doc/qrels/train.tsv",
     "nqrels_file": "/Tmp/lvpoellhuber/datasets/msmarco-doc/nqrels/train.tsv",
-    "model_type": "longtriever",
+    "model_type": "hierarchical",
     "max_query_length": 512,
     "max_corpus_length": 512,
     "max_corpus_sent_num": 8,
@@ -23,7 +23,7 @@
     "lr": 1e-4, 
     "report_to": "comet_ml",
     "logging_steps": 10,
-    "ablation_config": {"inter_block_encoder":true, "doc_token":true, "separators": false, "segments": false}, 
+    "ablation_config": {"inter_block_encoder":true, "doc_token":true, "start_separator": false, "text_separator": true, "end_separator": false, "segments": false, "cls_position": "relative"}, 
     "loss_function": "contrastive", 
     "min_corpus_len": 0
 }

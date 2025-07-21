@@ -5,6 +5,7 @@ import sys
 import dotenv
 import json
 dotenv.load_dotenv()
+import warnings
 
 from data_handler import DatasetForFineTuning,DatasetForFineTuningNegatives,DataCollatorForFineTuningLongtriever,DataCollatorForFineTuningHierarchicalLongtriever,DatasetForPretraining,LongtrieverCollator,DataCollatorForFineTuningBert
 from modeling_longtriever import Longtriever, LongtrieverForPretraining
@@ -75,7 +76,48 @@ def main():
 
     if (model_args.model_type == "bert") & (data_args.negatives):
         raise ValueError("BERT model does not yet support negatives. Please set `negatives` to False.")
+    
+    if (not model_args.ablation_config["text_separator"]) & (not model_args.ablation_config["end_separator"]):
+        warnings.warn("No separators are set in the ablation config. This could lead to training issues. Please set at least one separator to True.")
 
+    log_message("Loading model.")
+    if model_args.model_type=="longtriever":
+        encoder = Longtriever.from_pretrained(
+                model_args.model_name_or_path, 
+                ablation_config=model_args.ablation_config, 
+                doc_token_init=model_args.doc_token_init
+            )
+        model = LongtrieverRetriever(
+                model=encoder, 
+                normalize=data_args.normalize,
+                loss_function=data_args.loss_function
+            ) 
+    elif model_args.model_type=="hierarchical":
+        encoder = HierarchicalLongtriever.from_pretrained(
+                model_args.model_name_or_path, 
+                ablation_config=model_args.ablation_config, 
+                doc_token_init=model_args.doc_token_init, 
+                output_attentions=model_args.output_attentions
+            )
+        model = LongtrieverRetriever(
+                model=encoder, 
+                normalize=data_args.normalize,
+                loss_function=data_args.loss_function
+            )     
+    elif model_args.model_type=="bert":
+        encoder = BertModel.from_pretrained(
+                model_args.model_name_or_path
+            )
+        model = BertRetriever(
+                model=encoder, 
+                normalize=data_args.normalize,
+                loss_function=data_args.loss_function
+            )     
+    elif model_args.model_type=="longtriever_pretrain":
+        model = LongtrieverForPretraining.from_pretrained(model_args.model_name_or_path)
+    else:
+        raise ValueError(f"Model type {model_args.model_type} not supported")#
+    
     # Create datacollator & model
     log_message("Loading dataset.")
     tokenizer=AutoTokenizer.from_pretrained(data_args.tokenizer_name)
@@ -105,7 +147,10 @@ def main():
                 max_query_length=data_args.max_query_length,
                 max_corpus_length=data_args.max_corpus_length,
                 max_corpus_sent_num=data_args.max_corpus_sent_num, 
-                negatives=data_args.negatives
+                negatives=data_args.negatives, 
+                start_separator = model_args.ablation_config.get("start_separator", False), 
+                text_separator = model_args.ablation_config.get("text_separator", True), 
+                end_separator = model_args.ablation_config.get("end_separator", False)
             )
     elif model_args.model_type=="bert":
         log_message("Loading dataset for fine-tuning")
@@ -126,43 +171,6 @@ def main():
     else:
         raise ValueError(f"Model type {model_args.model_type} not supported")#
 
-    log_message("Loading model.")
-    if model_args.model_type=="longtriever":
-        encoder = Longtriever.from_pretrained(
-                model_args.model_name_or_path, 
-                ablation_config=model_args.ablation_config, 
-                doc_token_init=model_args.doc_token_init
-            )
-        model = LongtrieverRetriever(
-                model=encoder, 
-                normalize=data_args.normalize,
-                loss_function=data_args.loss_function
-            ) 
-    elif model_args.model_type=="hierarchical":
-        encoder = HierarchicalLongtriever.from_pretrained(
-                model_args.model_name_or_path, 
-                ablation_config=model_args.ablation_config, 
-                doc_token_init=model_args.doc_token_init
-            )
-        model = LongtrieverRetriever(
-                model=encoder, 
-                normalize=data_args.normalize,
-                loss_function=data_args.loss_function
-            )     
-    elif model_args.model_type=="bert":
-        encoder = BertModel.from_pretrained(
-                model_args.model_name_or_path
-            )
-        model = BertRetriever(
-                model=encoder, 
-                normalize=data_args.normalize,
-                loss_function=data_args.loss_function
-            )     
-    elif model_args.model_type=="longtriever_pretrain":
-        model = LongtrieverForPretraining.from_pretrained(model_args.model_name_or_path)
-    else:
-        raise ValueError(f"Model type {model_args.model_type} not supported")#
-    
     # Initialize our Trainer
     trainer = PreTrainer(
         model=model,                                                                       

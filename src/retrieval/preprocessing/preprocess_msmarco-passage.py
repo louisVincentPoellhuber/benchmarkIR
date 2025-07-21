@@ -346,18 +346,18 @@ if __name__ == "__main__":
     download_msmarco(out_dir)
 
 
-    # if args.overwrite or not os.path.exists(out_dir+"/corpus.jsonl"):
-    #     preprocess_corpus(out_dir)
-    # if args.overwrite or not os.path.exists(out_dir+"/queries.jsonl"):
-    #     preprocess_queries(out_dir)
-    # if args.overwrite or not os.path.exists(qrel_dir+"/test.tsv"):
-    #     preprocess_dev(out_dir)
-    # if args.overwrite or not os.path.exists(qrel_dir+"/train.tsv"):
-    #     preprocess_train(out_dir)
-    # if args.overwrite or not os.path.exists(out_dir+"/train_pairs.pt"):
-    #     preprocess_train_pairs(out_dir)
-    # if args.overwrite or not os.path.exists(out_dir+"/train_triplets.pt"):
-    #     preprocess_hard_negatives(out_dir)
+    if args.overwrite or not os.path.exists(out_dir+"/corpus.jsonl"):
+        preprocess_corpus(out_dir)
+    if args.overwrite or not os.path.exists(out_dir+"/queries.jsonl"):
+        preprocess_queries(out_dir)
+    if args.overwrite or not os.path.exists(qrel_dir+"/test.tsv"):
+        preprocess_dev(out_dir)
+    if args.overwrite or not os.path.exists(qrel_dir+"/train.tsv"):
+        preprocess_train(out_dir)
+    if args.overwrite or not os.path.exists(out_dir+"/train_pairs.pt"):
+        preprocess_train_pairs(out_dir)
+    if args.overwrite or not os.path.exists(out_dir+"/train_triplets.pt"):
+        preprocess_hard_negatives(out_dir)
     if args.overwrite or not os.path.exists(out_dir+"/nqrels/train.tsv"):
         preprocess_nqrels(out_dir)
 

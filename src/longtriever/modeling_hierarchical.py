@@ -15,9 +15,10 @@ class HierarchicalLongtrieverConfig(BertConfig):
 class HierarchicalLongtrieverEmbeddings(BertEmbeddings):
     def __init__(self, config, **kwargs):
         super().__init__(config)
-        ablation_config = kwargs.get("ablation_config", {"separators": False, "segments": False})
+        ablation_config = kwargs.get("ablation_config", {"start_separator": False, "text_separator": True, "end_separator": False, "segments": False, "cls_position": "first"})
         self.add_segments = ablation_config["segments"]
-        self.add_separators = ablation_config["separators"]
+        self.cls_position = ablation_config["cls_position"]
+        self.end_separator = ablation_config["end_separator"]
 
     def add_blockwise_cls_tokens(self, inputs_embeds, attention_mask, token_type_ids):
         cls_embeds = inputs_embeds[:, :, 0, :]
@@ -30,35 +31,70 @@ class HierarchicalLongtrieverEmbeddings(BertEmbeddings):
             current_block_input_embeds = inputs_embeds[:, i, :, :] # Input embeddings for block i
             current_cls_embeds = current_block_input_embeds[:, 0:1, :] # CLS token for block i
             pre_cls_embeds = cls_embeds[:, 0:i, :] # Take the CLS tokens from the previous blocks
-            current_final_sep_embeds = current_block_input_embeds[:, -1:, :] # Final SEP token for block i, after padding
             post_cls_embeds = cls_embeds[:, i:-1, :] # Take the CLS tokens from the next blocks
-            hier_block_input_embeds = torch.cat([current_cls_embeds, pre_cls_embeds, current_block_input_embeds[:, 1:-1, :], post_cls_embeds, current_final_sep_embeds], dim=1)
+            hier_block_input_embeds = []
+            if self.cls_position == "first":
+                hier_block_input_embeds = [current_cls_embeds, pre_cls_embeds]
+            elif self.cls_position == "relative":
+                hier_block_input_embeds = [pre_cls_embeds, current_cls_embeds]
+            if self.end_separator:            
+                current_final_sep_embeds = current_block_input_embeds[:, -1:, :] # Final SEP token for block i, after padding
+                hier_block_input_embeds += [current_block_input_embeds[:, 1:-1, :], post_cls_embeds, current_final_sep_embeds]
+            else:
+                hier_block_input_embeds += [current_block_input_embeds[:, 1:, :], post_cls_embeds]
+
+            hier_block_input_embeds = torch.cat(hier_block_input_embeds, dim=1)
             block_input_embeds.append(hier_block_input_embeds)
 
             # Attention Mask
             current_block_attention_mask = attention_mask[:, i, :]
             current_cls_attention_mask = current_block_attention_mask[:, 0:1]
             pre_cls_attention_mask = current_cls_attention_mask.clone().repeat(1, i)
-            current_final_sep_attention_mask = current_cls_attention_mask.clone() # If the token is CLS, it'll be 1, if it's PAD, it'll be 0
             post_cls_attention_mask = cls_attention_mask[:, i:-1]
-            hier_block_attention_mask = torch.cat([current_cls_attention_mask, pre_cls_attention_mask, current_block_attention_mask[:, 1:-1], post_cls_attention_mask, current_final_sep_attention_mask], dim=1)
+            hier_block_attention_mask = []
+            if self.cls_position == "first":
+                hier_block_attention_mask = [current_cls_attention_mask, pre_cls_attention_mask]
+            elif self.cls_position == "relative":
+                hier_block_attention_mask = [pre_cls_attention_mask, current_cls_attention_mask]
+            if self.end_separator:
+                current_final_sep_attention_mask = current_cls_attention_mask.clone() # If the token is CLS, it'll be 1, if it's PAD, it'll be 0
+                hier_block_attention_mask += [current_block_attention_mask[:, 1:-1], post_cls_attention_mask, current_final_sep_attention_mask]
+            else:
+                hier_block_attention_mask += [current_block_attention_mask[:, 1:], post_cls_attention_mask]
+
+            hier_block_attention_mask = torch.cat(hier_block_attention_mask, dim=1)
             block_attention_mask.append(hier_block_attention_mask)
 
             # Token Type IDs
-            current_token_type_ids = token_type_ids[:, i, :]
-            current_cls_token_type_ids = current_token_type_ids[:, 0:1]
-            current_final_sep_token_type_ids = current_token_type_ids[:, -1:]
-            pre_token_type_ids = torch.tensor(1, dtype=current_token_type_ids.dtype, device=current_token_type_ids.device).repeat(current_token_type_ids.shape[0], i)
-            post_token_type_ids = torch.tensor(1, dtype=current_token_type_ids.dtype, device=current_token_type_ids.device).repeat(current_token_type_ids.shape[0], token_type_ids.shape[1] - i - 1)
-            hier_token_type_ids = torch.cat([current_cls_token_type_ids, pre_token_type_ids, current_token_type_ids[:, 1:-1], post_token_type_ids, current_final_sep_token_type_ids], dim=1)
-            block_token_type_ids.append(hier_token_type_ids)
-
+            if self.add_segments:
+                current_token_type_ids = token_type_ids[:, i, :]
+                current_cls_token_type_ids = current_token_type_ids[:, 0:1]
+                pre_token_type_ids = torch.tensor(1, dtype=current_token_type_ids.dtype, device=current_token_type_ids.device).repeat(current_token_type_ids.shape[0], i)
+                post_token_type_ids = torch.tensor(1, dtype=current_token_type_ids.dtype, device=current_token_type_ids.device).repeat(current_token_type_ids.shape[0], token_type_ids.shape[1] - i - 1)
+                hier_token_type_ids = []
+                if self.cls_position == "first":
+                    hier_token_type_ids = [current_cls_token_type_ids, pre_token_type_ids]
+                elif self.cls_position == "relative":
+                    hier_token_type_ids = [pre_token_type_ids, current_cls_token_type_ids]
+                if self.end_separator:
+                    current_final_sep_token_type_ids = current_token_type_ids[:, -1:]
+                    hier_token_type_ids += [current_token_type_ids[:, 1:-1], post_token_type_ids, current_final_sep_token_type_ids]
+                else:
+                    hier_token_type_ids += [current_token_type_ids[:, 1:], post_token_type_ids]
+                    
+                hier_token_type_ids = torch.cat(hier_token_type_ids, dim=1)
+                block_token_type_ids.append(hier_token_type_ids)
+                
         block_input_embeds = torch.stack(block_input_embeds, dim=1)
         block_attention_mask = torch.stack(block_attention_mask, dim=1)
-        block_token_type_ids = torch.stack(block_token_type_ids, dim=1)
+
+        if self.add_segments:
+            block_token_type_ids = torch.stack(block_token_type_ids, dim=1)
+        else:
+            block_token_type_ids = torch.zeros_like(block_input_embeds[:, :, :, 0], dtype=torch.long, device=block_input_embeds.device)
 
         return block_input_embeds, block_attention_mask, block_token_type_ids
-    
+        
 
     def forward(
         self,
@@ -96,6 +132,7 @@ class HierarchicalLongtrieverEmbeddings(BertEmbeddings):
             inputs_embeds = self.word_embeddings(input_ids)
         # token_type_embeddings = self.token_type_embeddings(token_type_ids)
 
+        # Move that five lines up!!
         if input_shape[1]>1:
             block_input_embeds, block_attention_mask, token_type_ids = self.add_blockwise_cls_tokens(inputs_embeds, attention_mask, token_type_ids)
         else:
@@ -118,27 +155,39 @@ class HierarchicalLongtrieverEmbeddings(BertEmbeddings):
             return embeddings
 
 class BlockLevelHierarchicalContextawareEncoder(nn.Module):
-    def __init__(self, config):
+    def __init__(self, config, **kwargs):
         super().__init__()
         self.config = config
         self.text_encoding_layer = nn.ModuleList([BertLayer(config) for _ in range(config.num_hidden_layers)])
         self.information_exchanging_layer = nn.ModuleList([BertLayer(config) for _ in range(config.num_hidden_layers)])
+        ablation_config = kwargs.get("ablation_config", {"start_separator": False, "text_separator": True, "end_separator": False, "segments": False, "cls_position": "first"})
+        self.cls_position = ablation_config["cls_position"]
+        self.end_separator = ablation_config["end_separator"]
 
     def update_blockwise_cls_tokens(self, cls_hidden_states, hidden_states, B, N, L_, D):
+        extended_cls_tokens = cls_hidden_states.repeat(N, 1, 1, 1).view(B, N, N, D)
+        
         # pre
-        pre_indices = torch.tril_indices(N, L_, offset=1)
-        mask = (pre_indices[1] != 0) & (pre_indices[1] != 1) 
+        if self.cls_position == "first":
+            offset=1
+        elif self.cls_position == "relative":
+            offset=0
+
+        pre_indices = torch.tril_indices(N, L_, offset=offset)
+        mask = (pre_indices[1] != 0) & (pre_indices[1] != offset) 
         pre_filtered_indices = pre_indices[:, mask]
 
-        extended_cls_tokens = cls_hidden_states.repeat(N, 1, 1, 1).view(B, N, N, D)
         pre_cls_indices = torch.tril_indices(N, N, offset=-1)
 
         hidden_states[:, pre_filtered_indices[0], pre_filtered_indices[1], :] = extended_cls_tokens[:, pre_cls_indices[0], pre_cls_indices[1], :]
 
         # post
-        post_indices = torch.triu_indices(N, L_, offset=L_-N+1) 
-        # mask = post_indices[1] != hidden_states.shape[1] - 1
-        # post_filtered_indices = post_indices[:, mask]
+        if self.end_separator:
+            post_indices = torch.triu_indices(N, L_, offset=L_-N) 
+            mask = post_indices[1] != L_ - 1
+            post_indices = post_indices[:, mask]
+        else:
+            post_indices = torch.triu_indices(N, L_, offset=L_-N+1) 
 
         post_cls_indices = torch.triu_indices(N, N, offset=1)
 
@@ -159,17 +208,21 @@ class BlockLevelHierarchicalContextawareEncoder(nn.Module):
 
         for i, layer_module in enumerate(self.text_encoding_layer):
             if i>0: # Every subsequent layer
-                layer_outputs = layer_module(hidden_states, attention_mask)
+                layer_outputs = layer_module(hidden_states, attention_mask, output_attentions=self.config.output_attentions)
             else: # The first layer
                 temp_attention_mask = attention_mask.clone()
                 temp_attention_mask[:,:,:,0] = -10000.0
-                layer_outputs = layer_module(hidden_states, temp_attention_mask)
+                layer_outputs = layer_module(hidden_states, temp_attention_mask, output_attentions=self.config.output_attentions)
                 reduce_hidden_states=reduce_hidden_states[None,:,:].repeat(B,1,1) # repeat it for all 3 examples in batch
 
             hidden_states = layer_outputs[0]
 
             hidden_states = hidden_states.view(B, N, L_, D)
-            cls_hidden_states = hidden_states[:, :, 1, :].clone()
+
+            if self.cls_position == "first":
+                cls_hidden_states = hidden_states[:, :, 1, :].clone()
+            elif self.cls_position == "relative":
+                cls_hidden_states = hidden_states[:, torch.arange(N), torch.arange(N)+1, :].clone() 
 
             if N>1: # Pointless to do for small document and queries
                 hidden_states = self.update_blockwise_cls_tokens(cls_hidden_states, hidden_states, B, N, L_, D)

@@ -329,6 +329,8 @@ class DataCollatorForFineTuningLongtriever:
         corpus_input_ids_batch=tensorize_batch(corpus_input_ids_batch,self.tokenizer.pad_token_id, align_right=self.align_right) #[B,N,L]
         corpus_attention_mask_batch=tensorize_batch(corpus_attention_mask_batch,0, align_right=self.align_right) #[B,N,L]
 
+        # if corpus_input_ids_batch.shape[2] == 512:
+        #     pass
 
         if self.negatives:
             negative_input_ids_batch=tensorize_batch(negative_input_ids_batch,self.tokenizer.pad_token_id, align_right=self.align_right) #[B,N,L]
@@ -361,6 +363,9 @@ class DataCollatorForFineTuningHierarchicalLongtriever:
     max_corpus_sent_num:int
     align_right:bool=False
     negatives:bool=False
+    start_separator:bool=False
+    text_separator:bool=True
+    end_separator:bool=False
     def __post_init__(self):
         if isinstance(self.tokenizer,str):
             self.tokenizer=AutoTokenizer.from_pretrained(self.tokenizer)
@@ -376,8 +381,8 @@ class DataCollatorForFineTuningHierarchicalLongtriever:
         results = self.tokenizer(sentences, add_special_tokens=False, truncation=False, return_attention_mask=False,
                                  return_token_type_ids=False, verbose=False)
 
-        # -1 is for the current block: out of 8 blocks, 7 are appended
-        block_len = self.max_corpus_length - 4 - (self.max_corpus_sent_num - 1)
+        num_special_tokens = 1 + self.start_separator + self.text_separator + self.end_separator
+        block_len = self.max_corpus_length - num_special_tokens - (self.max_corpus_sent_num - 1)
         cls_token_id = self.tokenizer.cls_token_id
         sep_token_id = self.tokenizer.sep_token_id
         
@@ -388,7 +393,15 @@ class DataCollatorForFineTuningHierarchicalLongtriever:
         for input_ids_sent in results['input_ids']:
 
             if len(curr_block) + len(input_ids_sent) >= block_len and curr_block:
-                block_input_ids = torch.tensor([cls_token_id, sep_token_id] + curr_block[:block_len] + [sep_token_id])
+                # Start with CLS token
+                pre_tokens = [cls_token_id] 
+                if self.start_separator: # Add a separator at the beginning if True
+                    pre_tokens += [sep_token_id] 
+                block_input_ids = pre_tokens + curr_block[:block_len]
+                if self.text_separator: # Add a separator at the end of the text if True
+                    block_input_ids += [sep_token_id]
+                block_input_ids = torch.tensor(block_input_ids)
+
                 input_ids_blocks.append(block_input_ids)
                 attention_mask_blocks.append(torch.tensor([1] * len(block_input_ids))) # To account for the extra sep token I'll add at the end
                 
@@ -398,7 +411,14 @@ class DataCollatorForFineTuningHierarchicalLongtriever:
             curr_block.extend(input_ids_sent)
 
         if len(curr_block) > 0:
-            block_input_ids = torch.tensor([cls_token_id, sep_token_id] + curr_block[:block_len] + [sep_token_id])
+            pre_tokens = [cls_token_id] 
+            if self.start_separator: # Add a separator at the beginning if True
+                pre_tokens += [sep_token_id] 
+            block_input_ids = pre_tokens + curr_block[:block_len]
+            if self.text_separator: # Add a separator at the end of the text if True
+                block_input_ids += [sep_token_id]
+            block_input_ids = torch.tensor(block_input_ids)  
+
             input_ids_blocks.append(block_input_ids)
             attention_mask_blocks.append(torch.tensor([1] * len(block_input_ids)))
         
@@ -444,30 +464,31 @@ class DataCollatorForFineTuningHierarchicalLongtriever:
             corpus_attention_mask_batch.append(corpus_resutls['attention_mask_blocks'])
 
         query_input_ids_batch = tensorize_batch(query_input_ids_batch, self.tokenizer.pad_token_id, align_right=self.align_right)  # [B,N,L]
-        query_final_sep_token = torch.tensor([sep_token_id]).repeat(query_input_ids_batch.shape[0], query_input_ids_batch.shape[1], 1)
-        query_input_ids_batch = torch.cat([query_input_ids_batch, query_final_sep_token], dim=2) # Add the last sep token
-        
         query_attention_mask_batch = tensorize_batch(query_attention_mask_batch, 0, align_right=self.align_right)  # [B,N,L]
-        query_final_sep_token_mask= torch.tensor([1]).repeat(query_attention_mask_batch.shape[0], query_attention_mask_batch.shape[1], 1)
-        query_attention_mask_batch = torch.cat([query_attention_mask_batch, query_final_sep_token_mask], dim=2) # Add the last sep token
-        
-
         corpus_input_ids_batch=tensorize_batch(corpus_input_ids_batch,self.tokenizer.pad_token_id, align_right=self.align_right) #[B,N,L]
-        corpus_final_sep_token = torch.tensor([sep_token_id]).repeat(corpus_input_ids_batch.shape[0], corpus_input_ids_batch.shape[1], 1)
-        corpus_input_ids_batch = torch.cat([corpus_input_ids_batch, corpus_final_sep_token], dim=2) # Add the last sep token
-        
         corpus_attention_mask_batch=tensorize_batch(corpus_attention_mask_batch,0, align_right=self.align_right) #[B,N,L]
-        corpus_final_sep_token_mask= torch.tensor([1]).repeat(corpus_attention_mask_batch.shape[0], corpus_attention_mask_batch.shape[1], 1)
-        corpus_attention_mask_batch = torch.cat([corpus_attention_mask_batch, corpus_final_sep_token_mask], dim=2) # Add the last sep token
-
+        
+        if self.end_separator:
+            query_final_sep_token = torch.tensor([sep_token_id]).repeat(query_input_ids_batch.shape[0], query_input_ids_batch.shape[1], 1)
+            query_input_ids_batch = torch.cat([query_input_ids_batch, query_final_sep_token], dim=2) # Add the last sep token
+            query_final_sep_token_mask= query_attention_mask_batch[:, :, :1]
+            query_attention_mask_batch = torch.cat([query_attention_mask_batch, query_final_sep_token_mask], dim=2) # Add the last sep token
+            
+            corpus_final_sep_token = torch.tensor([sep_token_id]).repeat(corpus_input_ids_batch.shape[0], corpus_input_ids_batch.shape[1], 1)
+            corpus_input_ids_batch = torch.cat([corpus_input_ids_batch, corpus_final_sep_token], dim=2) # Add the last sep token
+            corpus_final_sep_token_mask= corpus_attention_mask_batch[:, :, :1]
+            corpus_attention_mask_batch = torch.cat([corpus_attention_mask_batch, corpus_final_sep_token_mask], dim=2) # Add the last sep token
+    
+        
         if self.negatives:
             negative_input_ids_batch=tensorize_batch(negative_input_ids_batch,self.tokenizer.pad_token_id, align_right=self.align_right) #[B,N,L]
-            negative_final_sep_token = torch.tensor([sep_token_id]).repeat(negative_input_ids_batch.shape[0], negative_input_ids_batch.shape[1], 1)
-            negative_input_ids_batch = torch.cat([negative_input_ids_batch, negative_final_sep_token], dim=2) # Add the last sep token
-            
             negative_attention_mask_batch=tensorize_batch(negative_attention_mask_batch,0, align_right=self.align_right) #[B,N,L]
-            negative_final_sep_token_mask= torch.tensor([1]).repeat(negative_attention_mask_batch.shape[0], negative_attention_mask_batch.shape[1], 1)
-            negative_attention_mask_batch = torch.cat([negative_attention_mask_batch, negative_final_sep_token_mask], dim=2) # Add the last sep token
+            
+            if self.end_separator:
+                negative_final_sep_token = torch.tensor([sep_token_id]).repeat(negative_input_ids_batch.shape[0], negative_input_ids_batch.shape[1], 1)
+                negative_input_ids_batch = torch.cat([negative_input_ids_batch, negative_final_sep_token], dim=2) # Add the last sep token
+                negative_final_sep_token_mask= negative_attention_mask_batch[:, :, :1]
+                negative_attention_mask_batch = torch.cat([negative_attention_mask_batch, negative_final_sep_token_mask], dim=2) # Add the last sep token
             
             batch = {
                 "query_input_ids": query_input_ids_batch, #[B,N,L]
@@ -602,6 +623,9 @@ class DataCollatorForEvaluatingHierarchicalLongtriever:
     max_corpus_length:int
     max_corpus_sent_num:int
     align_right:bool=False
+    start_separator:bool=False
+    text_separator:bool=True
+    end_separator:bool=False
     def __post_init__(self):
         if isinstance(self.tokenizer,str):
             self.tokenizer=AutoTokenizer.from_pretrained(self.tokenizer)
@@ -617,31 +641,58 @@ class DataCollatorForEvaluatingHierarchicalLongtriever:
         results = self.tokenizer(sentences, add_special_tokens=False, truncation=False, return_attention_mask=False,
                                  return_token_type_ids=False, verbose=False)
 
-        block_len = self.max_corpus_length - self.tokenizer.num_special_tokens_to_add(False) - self.max_corpus_sent_num + 1
+        num_special_tokens = 1 + self.start_separator + self.text_separator + self.end_separator
+        block_len = self.max_corpus_length - num_special_tokens - (self.max_corpus_sent_num - 1)
+        cls_token_id = self.tokenizer.cls_token_id
+        sep_token_id = self.tokenizer.sep_token_id
+        
         input_ids_blocks = []
         attention_mask_blocks = []
         curr_block = []
+
         for input_ids_sent in results['input_ids']:
+
             if len(curr_block) + len(input_ids_sent) >= block_len and curr_block:
-                input_ids_blocks.append(
-                    torch.tensor(self.tokenizer.build_inputs_with_special_tokens(curr_block[:block_len])))
-                attention_mask_blocks.append(torch.tensor([1] * len(input_ids_blocks[-1])))
+                # Start with CLS token
+                pre_tokens = [cls_token_id] 
+                if self.start_separator: # Add a separator at the beginning if True
+                    pre_tokens += [sep_token_id] 
+                block_input_ids = pre_tokens + curr_block[:block_len]
+                if self.text_separator: # Add a separator at the end of the text if True
+                    block_input_ids += [sep_token_id]
+                block_input_ids = torch.tensor(block_input_ids)
+
+                input_ids_blocks.append(block_input_ids)
+                attention_mask_blocks.append(torch.tensor([1] * len(block_input_ids))) # To account for the extra sep token I'll add at the end
+                
                 curr_block = []
                 if len(input_ids_blocks) >= self.max_corpus_sent_num:
                     break
             curr_block.extend(input_ids_sent)
+
         if len(curr_block) > 0:
-            input_ids_blocks.append(
-                torch.tensor(self.tokenizer.build_inputs_with_special_tokens(curr_block[:block_len])))
-            attention_mask_blocks.append(torch.tensor([1] * len(input_ids_blocks[-1])))
+            pre_tokens = [cls_token_id] 
+            if self.start_separator: # Add a separator at the beginning if True
+                pre_tokens += [sep_token_id] 
+            block_input_ids = pre_tokens + curr_block[:block_len]
+            if self.text_separator: # Add a separator at the end of the text if True
+                block_input_ids += [sep_token_id]
+            block_input_ids = torch.tensor(block_input_ids)  
+
+            input_ids_blocks.append(block_input_ids)
+            attention_mask_blocks.append(torch.tensor([1] * len(block_input_ids)))
+        
         input_ids_blocks = tensorize_batch(input_ids_blocks, self.tokenizer.pad_token_id, align_right=self.align_right)
         attention_mask_blocks = tensorize_batch(attention_mask_blocks, 0, align_right=self.align_right)
+
         return {
             "input_ids_blocks": input_ids_blocks,
             "attention_mask_blocks": attention_mask_blocks,
         }
 
     def __call__(self, examples):
+        sep_token_id = self.tokenizer.sep_token_id
+
         input_ids_batch = []
         attention_mask_batch = []
         for e in examples:
@@ -652,6 +703,12 @@ class DataCollatorForEvaluatingHierarchicalLongtriever:
         input_ids_batch=tensorize_batch(input_ids_batch,self.tokenizer.pad_token_id, align_right=self.align_right) #[B,N,L]
         attention_mask_batch=tensorize_batch(attention_mask_batch,0, align_right=self.align_right) #[B,N,L]
 
+        
+        if self.end_separator:
+            final_sep_token = torch.tensor([sep_token_id]).repeat(input_ids_batch.shape[0], input_ids_batch.shape[1], 1)
+            input_ids_batch = torch.cat([input_ids_batch, final_sep_token], dim=2) # Add the last sep token
+            final_sep_token_mask= attention_mask_batch[:, :, :1]
+            attention_mask_batch = torch.cat([attention_mask_batch, final_sep_token_mask], dim=2) # Add the last sep token
 
         batch = {
             "input_ids": input_ids_batch, #[B,N,L]
