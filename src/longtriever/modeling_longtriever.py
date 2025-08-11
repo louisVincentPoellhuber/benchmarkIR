@@ -49,7 +49,7 @@ class BlockLevelContextawareEncoder(nn.Module):
                 cls_hidden_states = hidden_states[:, :, 1, :].clone()
 
                 reduce_cls_hidden_states=torch.cat([reduce_hidden_states,cls_hidden_states],dim=1) #[B,N+1,D]
-                station_hidden_states = self.information_exchanging_layer[i](reduce_cls_hidden_states, node_mask)[0]
+                station_hidden_states = self.information_exchanging_layer[i](reduce_cls_hidden_states, node_mask, output_attentions=self.config.output_attentions)[0]
                 reduce_hidden_states = station_hidden_states[:,:1,:]
                 hidden_states[:, :, 0, :] = station_hidden_states[:,1:,:]
                 hidden_states = hidden_states.view(B * N, L_, D)

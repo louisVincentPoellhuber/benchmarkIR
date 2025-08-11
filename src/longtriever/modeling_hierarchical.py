@@ -11,6 +11,7 @@ class HierarchicalLongtrieverConfig(BertConfig):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+        self.pooling_strategy = kwargs.get("pooling_strategy", "mean")  
 
 class HierarchicalLongtrieverEmbeddings(BertEmbeddings):
     def __init__(self, config, **kwargs):
@@ -160,9 +161,11 @@ class BlockLevelHierarchicalContextawareEncoder(nn.Module):
         self.config = config
         self.text_encoding_layer = nn.ModuleList([BertLayer(config) for _ in range(config.num_hidden_layers)])
         self.information_exchanging_layer = nn.ModuleList([BertLayer(config) for _ in range(config.num_hidden_layers)])
-        ablation_config = kwargs.get("ablation_config", {"start_separator": False, "text_separator": True, "end_separator": False, "segments": False, "cls_position": "first"})
-        self.cls_position = ablation_config["cls_position"]
-        self.end_separator = ablation_config["end_separator"]
+        self.ablation_config = kwargs.get("ablation_config", {"inter_block_encoder":True, "doc_token":True, "start_separator": False, "text_separator": True, "end_separator": False, "segments": False, "cls_position": "relative"})
+        self.cls_position = self.ablation_config["cls_position"]
+        self.end_separator = self.ablation_config["end_separator"]
+        self.doc_offset = int(self.ablation_config["doc_token"])
+        self.inter_block_encoder = self.ablation_config["inter_block_encoder"]
 
     def update_blockwise_cls_tokens(self, cls_hidden_states, hidden_states, B, N, L_, D):
         extended_cls_tokens = cls_hidden_states.repeat(N, 1, 1, 1).view(B, N, N, D)
@@ -207,7 +210,7 @@ class BlockLevelHierarchicalContextawareEncoder(nn.Module):
         N=N_-1
 
         for i, layer_module in enumerate(self.text_encoding_layer):
-            if i>0: # Every subsequent layer
+            if (i>0) or (not self.inter_block_encoder):
                 layer_outputs = layer_module(hidden_states, attention_mask, output_attentions=self.config.output_attentions)
             else: # The first layer
                 temp_attention_mask = attention_mask.clone()
@@ -217,25 +220,68 @@ class BlockLevelHierarchicalContextawareEncoder(nn.Module):
 
             hidden_states = layer_outputs[0]
 
-            hidden_states = hidden_states.view(B, N, L_, D)
+            if self.inter_block_encoder: 
+                hidden_states = hidden_states.view(B, N, L_, D)
+                if self.cls_position == "first":
+                    cls_hidden_states = hidden_states[:, :, self.doc_offset, :].clone()
+                elif self.cls_position == "relative":
+                    cls_hidden_states = hidden_states[:, torch.arange(N), torch.arange(N)+self.doc_offset, :].clone() 
+                
+                if N>1: # Pointless to do for small document and queries
+                    hidden_states = self.update_blockwise_cls_tokens(cls_hidden_states, hidden_states, B, N, L_, D)
 
-            if self.cls_position == "first":
-                cls_hidden_states = hidden_states[:, :, 1, :].clone()
-            elif self.cls_position == "relative":
-                cls_hidden_states = hidden_states[:, torch.arange(N), torch.arange(N)+1, :].clone() 
-
-            if N>1: # Pointless to do for small document and queries
-                hidden_states = self.update_blockwise_cls_tokens(cls_hidden_states, hidden_states, B, N, L_, D)
-
-            # reduce_hidden_states = torch.clamp(reduce_hidden_states, min=-1e18, max=1e18)
-            reduce_cls_hidden_states=torch.cat([reduce_hidden_states,cls_hidden_states],dim=1) #[B,N+1,D] So it's the doc token [DOC] with every block's [CLS] token
-            station_hidden_states = self.information_exchanging_layer[i](reduce_cls_hidden_states, node_mask)[0]
-            reduce_hidden_states = station_hidden_states[:,:1,:]
-            hidden_states[:, :, 0, :] = station_hidden_states[:,1:,:] # Replace the placeholder DOC tokens by the actual DOC tokens
-            hidden_states = hidden_states.view(B * N, L_, D)
+                # reduce_hidden_states = torch.clamp(reduce_hidden_states, min=-1e18, max=1e18)
+                reduce_cls_hidden_states=torch.cat([reduce_hidden_states,cls_hidden_states],dim=1) #[B,N+1,D] So it's the doc token [DOC] with every block's [CLS] token
+                station_hidden_states = self.information_exchanging_layer[i](reduce_cls_hidden_states, node_mask, output_attentions=self.config.output_attentions)[0]
+                reduce_hidden_states = station_hidden_states[:,:1,:]
+                hidden_states[:, :, 0, :] = station_hidden_states[:,1:,:] # Replace the placeholder DOC tokens by the actual DOC tokens
+                hidden_states = hidden_states.view(B * N, L_, D)
 
         return (reduce_hidden_states, hidden_states, )
+    
+class MeanPooling(nn.Module):
+    def __init__(self, config, **kwargs):
+        super().__init__()
+        self.config = config
 
+    def forward(self, cls_hidden_states: Tensor) -> Tensor:
+        return cls_hidden_states.mean(dim=1)
+        
+class AttentionPooling(nn.Module):
+    def __init__(self, config, **kwargs):
+        super().__init__()
+        self.config = config
+        self.attention_layer = nn.Linear(config.hidden_size, 1)
+
+    def forward(self, cls_hidden_states: Tensor) -> Tensor:
+
+        # Compute attention scores (batch_size, num_blocks, 1)
+        attn_scores = self.attention_layer(cls_hidden_states)
+
+        # Normalize attention scores over blocks (softmax over num_blocks)
+        attn_weights = torch.softmax(attn_scores, dim=1)  # (batch_size, num_blocks, 1)
+
+        # Weighted sum of CLS tokens (element-wise multiply then sum)
+        pooled_output = torch.sum(attn_weights * cls_hidden_states, dim=1)  # (batch_size, hidden_size)
+
+        return pooled_output
+        
+HIERARCHICAL_POOLERS = {
+    "mean": MeanPooling,
+    "attention": AttentionPooling,  
+}
+
+class HierarchicalPooler(nn.Module):
+    def __init__(self, config, **kwargs):
+        super().__init__()
+        pooler_type = kwargs.get("pooler_type", "mean")
+        self.pooler = HIERARCHICAL_POOLERS[pooler_type](config, **kwargs)
+
+    def forward(self, cls_hidden_states: Tensor) -> Tensor:
+        if cls_hidden_states.shape[1] == 1:
+            return cls_hidden_states.squeeze(1) # If there's only one block, we just return the hidden state
+        else:
+            return self.pooler(cls_hidden_states)
 
 class HierarchicalLongtriever(Longtriever):
     config_class = HierarchicalLongtrieverConfig
@@ -244,6 +290,9 @@ class HierarchicalLongtriever(Longtriever):
         super().__init__(config, **kwargs)
         self.embeddings = HierarchicalLongtrieverEmbeddings(config, **kwargs)
         self.encoder = BlockLevelHierarchicalContextawareEncoder(config, **kwargs)
+        self.ablation_config = kwargs.get("ablation_config", {"inter_block_encoder":True, "doc_token":True, "start_separator": False, "text_separator": True, "end_separator": False, "segments": False, "cls_position": "relative"})
+        if not self.ablation_config["inter_block_encoder"]:
+            self.pooler = HierarchicalPooler(config, **kwargs)
 
     def forward(
         self,
@@ -266,20 +315,41 @@ class HierarchicalLongtriever(Longtriever):
 
         embedding_output, block_attention_mask = self.embeddings(input_ids=input_ids, attention_mask=attention_mask)
         embedding_output = embedding_output.view(batch_size*sent_num,seq_length, embedding_output.shape[3])
-        station_placeholder = torch.zeros((embedding_output.shape[0], 1, embedding_output.shape[-1]),dtype=embedding_output.dtype,device=embedding_output.device)
-        embedding_output = torch.cat([station_placeholder, embedding_output], dim=1)  # [B*N,1+L,D]
-        
+
         block_attention_mask = block_attention_mask.view(batch_size*sent_num,seq_length)
         extended_attention_mask: torch.Tensor = self.get_extended_attention_mask(block_attention_mask) #[B*N,1,1,1+L] L is sequence length. [24, 1, 1,513]
         extended_sentence_mask = (1.0 - sentence_mask[:, None, None, :]) * -10000.0
 
+        if self.ablation_config["doc_token"]:
+            station_placeholder = torch.zeros((embedding_output.shape[0], 1, embedding_output.shape[-1]),dtype=embedding_output.dtype,device=embedding_output.device)
+            embedding_output = torch.cat([station_placeholder, embedding_output], dim=1)  # [B*N,1+L,D]
+            
         encoder_outputs = self.encoder(
             embedding_output,
             attention_mask=extended_attention_mask,
             reduce_hidden_states=self.doc_embeddings,
             node_mask=extended_sentence_mask,
         )
-        text_vec = encoder_outputs[0].squeeze(1)
+    
+        # Pooling depending on context
+        if self.ablation_config["inter_block_encoder"]:
+            text_vec = encoder_outputs[0].squeeze(1)
+        else:
+            doc_offset = int(self.ablation_config["doc_token"]) 
+            hidden_states = encoder_outputs[1].view(batch_size, sent_num, seq_length+doc_offset, encoder_outputs[1].shape[-1]) # [B,N,L+1,D]
+            if self.ablation_config["cls_position"] == "first":
+                cls_hidden_states = hidden_states[:, :, doc_offset, :].clone()
+            elif self.ablation_config["cls_position"] == "relative":
+                cls_hidden_states = hidden_states[:, torch.arange(sent_num), torch.arange(sent_num)+doc_offset, :].clone() 
+
+            text_vec = self.pooler(cls_hidden_states)
+        
+            # text_vec = encoder_outputs[1][:,cls_idx+doc_offset,:]
+
+        # elif not self.ablation_config["inter_block_encoder"] and self.ablation_config["doc_token"]:
+        #     text_vec = encoder_outputs[1][:,1,:] 
+        # elif not self.ablation_config["inter_block_encoder"] and not self.ablation_config["doc_token"]:
+        #     text_vec = encoder_outputs[1][:,0,:] 
 
         if not return_last_hiddens:
             return text_vec

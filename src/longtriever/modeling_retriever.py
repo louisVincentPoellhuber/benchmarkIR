@@ -125,8 +125,8 @@ class BertRetriever(nn.Module):
 class LongtrieverRetriever(BertRetriever):
     def forward(self, query_input_ids, query_attention_mask, corpus_input_ids, corpus_attention_mask, **kwargs):
 
-        query_embeddings = self.encoder(query_input_ids, query_attention_mask)
         corpus_embeddings = self.encoder(corpus_input_ids, corpus_attention_mask)
+        query_embeddings = self.encoder(query_input_ids, query_attention_mask)
         co_query_embeddings = torch.cat(self._gather_tensor(query_embeddings.contiguous()))
         co_corpus_embeddings = torch.cat(self._gather_tensor(corpus_embeddings.contiguous()))
     

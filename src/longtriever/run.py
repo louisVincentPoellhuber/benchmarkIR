@@ -34,7 +34,7 @@ def main():
     parser = HfArgumentParser((ModelArguments, DataTrainingArguments, TrainingArguments))
     if len(sys.argv) <=1 :
         # model_args, data_args, training_args = parser.parse_json_file(json_file=os.path.abspath(sys.argv[1]))
-        model_args, data_args, training_args = parser.parse_json_file(json_file="/u/poellhul/Documents/Masters/benchmarkIR-slurm/src/longtriever/configs/longtriever_test.json", allow_extra_keys=True)
+        model_args, data_args, training_args = parser.parse_json_file(json_file="/u/poellhul/Documents/Masters/benchmarkIR-slurm/src/longtriever/configs/streaming_test.json", allow_extra_keys=True)
     else:
         model_args, data_args, training_args = parser.parse_args_into_dataclasses()
         
@@ -97,7 +97,8 @@ def main():
                 model_args.model_name_or_path, 
                 ablation_config=model_args.ablation_config, 
                 doc_token_init=model_args.doc_token_init, 
-                output_attentions=model_args.output_attentions
+                output_attentions=model_args.output_attentions, 
+                pooling_strategy=model_args.pooling_strategy
             )
         model = LongtrieverRetriever(
                 model=encoder, 

@@ -7,6 +7,7 @@ from transformers import AutoTokenizer, PreTrainedTokenizerBase, DataCollatorFor
 from datasets import load_dataset,concatenate_datasets,load_from_disk
 from utils import tensorize_batch
 import nltk
+import sqlite3
 
 import dotenv
 dotenv.load_dotenv()
@@ -181,9 +182,28 @@ class LongtrieverCollator(DataCollatorForWholeWordMask):
 
         return batch
 
+class StreamingCorpus():
+    def __init__(self, file_path):
+        self.connection = sqlite3.connect(file_path)
+        self.connection.execute("PRAGMA journal_mode=WAL;")         # better concurrency & fewer locks
+        self.connection.execute("PRAGMA synchronous=NORMAL;")       # faster writes (safe enough)
+        self.connection.execute("PRAGMA temp_store=MEMORY;")        # temp tables in RAM
+        self.connection.execute("PRAGMA mmap_size=30000000000;") 
+        self.connection.row_factory = sqlite3.Row  # to access columns by name
+        self.cursor = self.connection.cursor()
+
+    def get_page(self, page_id):
+        self.cursor.execute("SELECT id, title, text, url FROM articles WHERE id = ?", (int(page_id),))
+        row = self.cursor.fetchone()
+
+        if row:
+            return row["title"], row["text"] 
+        else:
+            return None, None
 
 class DatasetForFineTuning(torch.utils.data.Dataset):
     def __init__(self, args):
+        
         def load_jsonl(file_path):
             d={}
             with open(file_path,encoding="utf-8")as df:
@@ -192,24 +212,41 @@ class DatasetForFineTuning(torch.utils.data.Dataset):
                     d[query['_id']]=query
             return d
 
+        self.streaming = args.streaming
         self.id2query=load_jsonl(args.query_file)
-        self.id2corpus=load_jsonl(args.corpus_file)
+        if self.streaming: 
+            self.streaming_corpus=StreamingCorpus(args.corpus_file)
+        else:
+            self.id2corpus=load_jsonl(args.corpus_file)
         self.dataset=open(args.qrels_file,encoding="utf-8").readlines()[1:]
         original_dataset_len=len(self.dataset)
-        if args.min_corpus_len>=0:
+        if args.min_corpus_len>0:
+            if self.streaming:
+                raise Exception("Cannot filter corpus with streaming corpus.")
             self.dataset=[line for line in self.dataset if len(self.id2corpus[line.split('\t')[1]].get("text"," ").split(" "))+len(self.id2corpus[line.split('\t')[1]].get("title"," ").split(" "))>=args.min_corpus_len]
             log_message(f"Filtered corpus with min length {args.min_corpus_len}, {len(self.dataset)} samples left, {original_dataset_len} originally")
 
     def __getitem__(self, item):
         query_id, corpus_id, score=self.dataset[item].split('\t')
-        if corpus_id in self.id2corpus:
-            query_str=self.id2query[query_id].get("text","")
-            corpus_title_str=self.id2corpus[corpus_id].get("title","")
-            corpus_text_str=self.id2corpus[corpus_id].get("text","")
-            corpus_str=corpus_title_str+' '+corpus_text_str if len(corpus_title_str)>0 else corpus_text_str
-            return [query_str,corpus_str]
+        if self.streaming:
+            corpus_title_str, corpus_text_str = self.streaming_corpus.get_page(corpus_id)
+            if corpus_text_str is not None:
+                query_str=self.id2query[query_id].get("text","")
+                corpus_str=corpus_title_str+' '+corpus_text_str if len(corpus_title_str)>0 else corpus_text_str
+                return [query_str,corpus_str]
+            else:
+                return ["", ""]
         else:
-            return ["", ""]
+            if corpus_id in self.id2corpus:
+                query_str=self.id2query[query_id].get("text","")
+                corpus_title_str=self.id2corpus[corpus_id].get("title","")
+                corpus_text_str=self.id2corpus[corpus_id].get("text","")
+                corpus_str=corpus_title_str+' '+corpus_text_str if len(corpus_title_str)>0 else corpus_text_str
+                return [query_str,corpus_str]
+            else:
+                return ["", ""]
+            
+
 
     def __len__(self):
         return len(self.dataset)

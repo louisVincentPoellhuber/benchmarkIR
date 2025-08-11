@@ -23,6 +23,7 @@ class DataTrainingArguments:
     base_model: Optional[str] = field(default="bert-base-uncased")
     base_model_postfix: Optional[str] = field(default="true")
     negatives: Optional[bool] = field(default=False)
+    streaming: Optional[bool] = field(default=False)
 
 @dataclass
 class ModelArguments:
@@ -31,6 +32,7 @@ class ModelArguments:
     ablation_config: Optional[str]  = field(default_factory=lambda:'{"inter_block_encoder":true, "doc_token":true, "start_separator": false, "text_separator": true, "end_separator": false, "segments": false, "cls_position": "first"}')
     doc_token_init: Optional[str] = field(default="default") # default, zero, cls
     output_attentions: Optional[bool] = field(default=False)
+    pooling_strategy: Optional[str] = field(default="mean")
     
     def __post_init__(self):
         if isinstance(self.ablation_config, str):

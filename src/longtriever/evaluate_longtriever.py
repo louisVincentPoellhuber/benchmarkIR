@@ -62,7 +62,10 @@ def main():
                 tokenizer,
                 data_args.max_query_length,
                 data_args.max_corpus_length,
-                data_args.max_corpus_sent_num
+                data_args.max_corpus_sent_num, 
+                start_separator = model_args.ablation_config.get("start_separator", False), 
+                text_separator = model_args.ablation_config.get("text_separator", True), 
+                end_separator = model_args.ablation_config.get("end_separator", False)
             )
     elif model_args.model_type=="bert":
         data_collator=DataCollatorForEvaluatingBert( 
@@ -88,7 +91,8 @@ def main():
     elif model_args.model_type=="hierarchical":
         encoder = HierarchicalLongtriever.from_pretrained(
                 model_args.model_name_or_path, 
-                ablation_config=model_args.ablation_config
+                ablation_config=model_args.ablation_config, 
+                pooling_strategy=model_args.pooling_strategy
             )
         model = LongtrieverRetriever(
                 model=encoder, 
@@ -121,6 +125,8 @@ def main():
     corpus, queries, qrels = GenericDataLoader(data_folder=data_path).load(split="test")
 
     if data_args.min_corpus_len>0:
+        if data_args.streaming:
+            raise Exception("Cannot filter corpus with streaming corpus.")
         new_qrels = {}
         new_corpus = {}
         for qid, doc in qrels.items():
