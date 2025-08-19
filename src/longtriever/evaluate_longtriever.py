@@ -10,7 +10,7 @@ dotenv.load_dotenv()
 from tqdm import tqdm
 
 from arguments import DataTrainingArguments, ModelArguments
-from data_handler import DataCollatorForEvaluatingLongtriever, DataCollatorForEvaluatingHierarchicalLongtriever,DataCollatorForEvaluatingBert
+from data_handler import DataCollatorForEvaluatingLongtriever, DataCollatorForEvaluatingHierarchicalLongtriever,DataCollatorForEvaluatingBert, StreamedDataLoader
 from modeling_retriever import LongtrieverRetriever,BertRetriever
 from modeling_longtriever import Longtriever
 from modeling_hierarchical import HierarchicalLongtriever
@@ -20,6 +20,7 @@ from modeling_utils import *
 from beir.datasets.data_loader import GenericDataLoader
 from beir.retrieval.evaluation import EvaluateRetrieval
 from beir.retrieval.search.dense import FlatIPFaissSearch
+from streamed_search import StreamedFlatIPFaissSearch
 from transformers import AutoTokenizer, HfArgumentParser,TrainingArguments,BertModel
 
 STORAGE_DIR = os.getenv("STORAGE_DIR")
@@ -28,7 +29,7 @@ def main():
     parser = HfArgumentParser((ModelArguments, DataTrainingArguments, TrainingArguments))
     if len(sys.argv) <=1 :
         # model_args, data_args, training_args = parser.parse_json_file(json_file=os.path.abspath(sys.argv[1]))
-        model_args, data_args, training_args = parser.parse_json_file(json_file="/u/poellhul/Documents/Masters/benchmarkIR-slurm/src/longtriever/configs/longtriever_test.json", allow_extra_keys=True)
+        model_args, data_args, training_args = parser.parse_json_file(json_file="/u/poellhul/Documents/Masters/benchmarkIR-slurm/src/longtriever/configs/streaming_test.json", allow_extra_keys=True)
     else:
         model_args, data_args, training_args = parser.parse_args_into_dataclasses()
     
@@ -117,12 +118,20 @@ def main():
     else:
         corpus_chunk_size = 50000
 
-    faiss_search = FlatIPFaissSearch(model, batch_size=batch_size, corpus_chunk_size=corpus_chunk_size) 
 
     data_path = os.path.join(STORAGE_DIR, "datasets", task)
     if task=="nq": 
         data_path = os.path.join(data_path, "nq")
-    corpus, queries, qrels = GenericDataLoader(data_folder=data_path).load(split="test")
+
+    if data_args.streaming:
+        faiss_search = StreamedFlatIPFaissSearch(model, batch_size=batch_size, corpus_chunk_size=corpus_chunk_size) 
+        corpus, queries, qrels = StreamedDataLoader(
+            corpus_file=data_args.corpus_file, 
+            query_file=data_args.query_file, 
+            qrels_file=data_args.qrels_file).load(split="test")
+    else:
+        faiss_search = FlatIPFaissSearch(model, batch_size=batch_size, corpus_chunk_size=corpus_chunk_size) 
+        corpus, queries, qrels = GenericDataLoader(data_folder=data_path).load(split="test")
 
     if data_args.min_corpus_len>0:
         if data_args.streaming:

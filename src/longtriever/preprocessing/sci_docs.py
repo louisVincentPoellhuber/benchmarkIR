@@ -1,24 +1,22 @@
 from common.utils import *
-from common.wikipedia import *
+from common.s2orc import *
+import time
 
-class HotPotQAProcessor(DatasetProcessor):
+class SciDocsProcessor(DatasetProcessor):
     def __init__(self, datapath, overwrite):
-        super().__init__(datapath, "hotpotqa", "wikipedia", overwrite)
-        self.subsets = ["train", "dev", "test"]
+        super().__init__(datapath, "scidocs", "s2orc", overwrite)
      
     def download(self):
-        ir_datasets.load("beir/hotpotqa")
-
-        if len(os.listdir(self.corpus_download_dir))>1:
-            create_db(self.corpus_download_dir, self.corpus_dir, self.overwrite)
-        else:
-            raise Exception(f"No extracted Wikipedia folders found at {self.corpus_download_dir}. Please run 'process_wikipedia.sh' first.")
+        ir_datasets.load("beir/scidocs")
+        download_s2orc(self.corpus_download_dir, self.overwrite)
+        create_db(self.corpus_download_dir, self.corpus_dir, self.overwrite)
 
     def process_corpus(self):
-        log_message("No need to process corpus for HotPotQA. Using Wikipedia database directly.", print_message=True)
+        log_message("No need to process corpus for SciDocs. Using S2ORC database directly.", print_message=True)
+
 
     def process_queries(self):
-        dataset = ir_datasets.load(f"beir/hotpotqa")
+        dataset = ir_datasets.load(f"beir/scidocs")
         queries_path = os.path.join(self.dataset_dir, "queries.jsonl")
 
         if self.overwrite or not os.path.exists(queries_path):
@@ -36,12 +34,12 @@ class HotPotQAProcessor(DatasetProcessor):
     def process_qrels(self):
         log_message(f"Processing qrels into {self.qrel_dir}.", print_message=True)
         
-        db_path = os.path.join(self.corpus_dir, "corpus.db")
+        db_path = os.path.join(self.corpus_download_dir, "corpus.db")
         connection = sqlite3.connect(db_path)
         cursor = connection.cursor()
         
         for subset in self.subsets:
-            dataset = ir_datasets.load(f"beir/hotpotqa/{subset}")
+            dataset = ir_datasets.load(f"beir/scidocs/{subset}")
             qrel_path = os.path.join(self.qrel_dir, f"{subset}.tsv")
 
             if self.overwrite or not os.path.exists(qrel_path):
@@ -57,8 +55,9 @@ class HotPotQAProcessor(DatasetProcessor):
 
 if __name__ == "__main__":
     args = parse_arguments()
-    processor = HotPotQAProcessor(args.datapath, args.overwrite)
+    processor = SciDocsProcessor(args.datapath, args.overwrite)
     
     processor.download()
+    processor.process_corpus()
     processor.process_queries()
     processor.process_qrels()

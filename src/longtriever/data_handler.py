@@ -8,6 +8,7 @@ from datasets import load_dataset,concatenate_datasets,load_from_disk
 from utils import tensorize_batch
 import nltk
 import sqlite3
+from beir.datasets.data_loader import GenericDataLoader
 
 import dotenv
 dotenv.load_dotenv()
@@ -181,6 +182,8 @@ class LongtrieverCollator(DataCollatorForWholeWordMask):
         }
 
         return batch
+    
+
 
 class StreamingCorpus():
     def __init__(self, file_path):
@@ -192,14 +195,65 @@ class StreamingCorpus():
         self.connection.row_factory = sqlite3.Row  # to access columns by name
         self.cursor = self.connection.cursor()
 
-    def get_page(self, page_id):
+        self.cursor.execute("SELECT id FROM articles")
+        ids = [row[0] for row in self.cursor.fetchall()]
+        self.ids = ids
+
+    def __getitem__(self, page_id):
         self.cursor.execute("SELECT id, title, text, url FROM articles WHERE id = ?", (int(page_id),))
         row = self.cursor.fetchone()
 
         if row:
-            return row["title"], row["text"] 
+            return {
+                "title": row["title"], 
+                "text": row["text"]
+                }
+    
         else:
             return None, None
+        
+    def __len__(self):
+        return len(self.ids)
+    
+
+
+class StreamedDataLoader(GenericDataLoader):
+    def load(self, split="test") -> tuple[dict[str, dict[str, str]], dict[str, str], dict[str, dict[str, int]]]:
+        self.check(fIn=self.corpus_file, ext="db")
+        self.check(fIn=self.query_file, ext="jsonl")
+        self.check(fIn=self.qrels_file, ext="tsv")
+ 
+        if not len(self.corpus):
+            logger.info("Loading Corpus...")
+            self._load_corpus()
+            logger.info("Loaded %d Documents.", len(self.corpus))
+
+        if not len(self.queries):
+            logger.info("Loading Queries...")
+            self._load_queries()
+
+        if os.path.exists(self.qrels_file):
+            self._load_qrels()
+            self.queries = {qid: self.queries[qid] for qid in self.qrels}
+            logger.info("Loaded %d %s Queries.", len(self.queries), split.upper())
+            logger.info("Query Example: %s", list(self.queries.values())[0])
+
+        return self.corpus, self.queries, self.qrels
+    
+    def load_corpus(self) -> dict[str, dict[str, str]]:
+        self.check(fIn=self.corpus_file, ext="jsonl")
+
+        if not len(self.corpus):
+            logger.info("Loading Corpus...")
+            self._load_corpus()
+            logger.info("Loaded %d Documents.", len(self.corpus))
+
+        return self.corpus
+    
+
+    def _load_corpus(self):
+        self.corpus = StreamingCorpus(self.corpus_file)
+
 
 class DatasetForFineTuning(torch.utils.data.Dataset):
     def __init__(self, args):
@@ -229,8 +283,10 @@ class DatasetForFineTuning(torch.utils.data.Dataset):
     def __getitem__(self, item):
         query_id, corpus_id, score=self.dataset[item].split('\t')
         if self.streaming:
-            corpus_title_str, corpus_text_str = self.streaming_corpus.get_page(corpus_id)
-            if corpus_text_str is not None:
+            item = self.streaming_corpus.__getitem__(corpus_id)
+            if item is not None:
+                corpus_title_str = item.get("title","")
+                corpus_text_str = item.get("text","")
                 query_str=self.id2query[query_id].get("text","")
                 corpus_str=corpus_title_str+' '+corpus_text_str if len(corpus_title_str)>0 else corpus_text_str
                 return [query_str,corpus_str]
