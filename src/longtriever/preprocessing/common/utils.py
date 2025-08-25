@@ -11,6 +11,9 @@ import re
 import wget
 import gzip
 import sqlite3
+import subprocess
+import shutil
+import time
 
 from transformers import AutoTokenizer
 from accelerate import Accelerator
@@ -84,6 +87,12 @@ class PairsDataset(torch.utils.data.Dataset):
     def save(self, save_path):
         torch.save(self.pairs, save_path)
 
+def extract_text_from_pdf(pdf_path):
+    doc = fitz.open(pdf_path)
+    text = ""
+    for page in doc:
+        text += page.get_text()
+    return text
 
 class DatasetProcessor():
     def __init__(self, datapath, dataset_name, corpus_name, overwrite=False):

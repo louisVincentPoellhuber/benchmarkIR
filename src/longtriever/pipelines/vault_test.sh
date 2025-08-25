@@ -1,3 +1,5 @@
+pip install requirements.txt
+
 bash src/longtriever/preprocessing/process_all.sh
 
 task="hotpotqa"

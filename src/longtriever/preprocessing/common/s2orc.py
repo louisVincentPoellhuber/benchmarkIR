@@ -35,7 +35,7 @@ def create_db(download_dir, db_dir, overwrite):
 
         cur.execute("""
         CREATE TABLE IF NOT EXISTS articles (
-            id TEXT  PRIMARY KEY,
+            id TEXT PRIMARY KEY,
             corpusid INTEGER,
             text TEXT
         )
@@ -58,10 +58,10 @@ def create_db(download_dir, db_dir, overwrite):
                     
                     batch.append((ssid, text, corpusid))
         
-        total_processed_pages+=len(batch)
-        cur.executemany("INSERT OR IGNORE INTO articles VALUES (?, ?, ?, ?)", batch)
-        conn.commit()
-        batch.clear()
+            total_processed_pages+=len(batch)
+            cur.executemany("INSERT OR IGNORE INTO articles VALUES (?, ?, ?)", batch)
+            conn.commit()
+            batch.clear()
 
         # 4. Close connection
         conn.close()
